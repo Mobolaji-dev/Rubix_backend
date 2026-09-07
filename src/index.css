@@ -1,0 +1,103 @@
+:root {
+  --color-primary: #34d399;
+  --color-primary-bright: #4CFEAF;
+  --color-primary-deep: #059669;
+  --color-on-primary: #030303;
+  --color-ink: #fafafa;
+  --color-ink-soft: #a1a1aa;
+  --color-on-ink: #ffffff;
+  --color-canvas: #030303;
+  --color-paper: #09090b;
+  --color-cloud: #27272a;
+  --color-hairline: #27272a;
+  --color-hairline-strong: #3f3f46;
+  --color-link: #34d399;
+  --color-link-pressed: #059669;
+  --color-success: #34d399;
+  --color-error: #f87171;
+
+  --font-sans: 'Inter', 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+
+  --spacing-xxs: 4px;
+  --spacing-xs: 8px;
+  --spacing-sm: 12px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-xxl: 48px;
+  --spacing-section: 96px;
+
+  --rounded-none: 0px;
+  --rounded-sm: 8px;
+  --rounded-md: 12px;
+  --rounded-lg: 16px;
+  --rounded-xl: 32px;
+  --rounded-xxl: 40px;
+  --rounded-pill: 9999px;
+
+  --shadow-card: rgba(0, 0, 0, 0.55) 0px 18px 35px 0px, rgba(255, 255, 255, 0.1) 0px 0px 0px 1px, rgba(255, 255, 255, 0.12) 0px 1px 0px 0px inset;
+  --shadow-button-primary: rgba(16, 185, 129, 0.55) 0px 15px 25px -10px, rgba(209, 250, 229, 0.85) 0px 4px 8px 0px inset, rgba(5, 150, 105, 0.9) 0px -4px 8px 0px inset;
+  --shadow-glow-focus: rgba(52, 211, 153, 0.7) 0px 0px 14px 0px;
+  --shadow-glow-backdrop: rgba(0, 0, 0, 0.8) 0px 40px 120px 0px;
+
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--color-ink);
+  background: var(--color-canvas);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--color-canvas);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+}
+
+button,
+input,
+a {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+#root {
+  min-height: 100vh;
+  background: var(--color-canvas);
+}
+
+p {
+  margin: 0;
+}
+
+h1,
+h2,
+h3,
+p,
+a,
+label,
+button,
+input {
+  letter-spacing: normal;
+}
