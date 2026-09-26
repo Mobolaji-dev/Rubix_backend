@@ -7,7 +7,7 @@ import ProcessingPage from './pages/ProcessingPage'
 import RepoInputPage from './pages/RepoInputPage'
 import ResultsPage from './pages/ResultsPage'
 
-const API_BASE_URL = 'https://rubixbackend.pxxl.click/'
+const API_BASE_URL = 'https://rubixbackend.pxxl.click'
 
 function App() {
   const [view, setView] = useState('input')

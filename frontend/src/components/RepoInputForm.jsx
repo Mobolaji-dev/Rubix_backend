@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
 
-const API_BASE_URL = 'https://rubixbackend.pxxl.click/'
+const API_BASE_URL = 'https://rubixbackend.pxxl.click'
 
 function isValidRepoUrl(value) {
   if (!value?.trim()) {
@@ -18,37 +18,6 @@ function isValidRepoUrl(value) {
 export default function RepoInputForm({ onSubmit }) {
   const [repoUrl, setRepoUrl] = useState('')
   const [error, setError] = useState('')
-  const [sampleRepos, setSampleRepos] = useState([])
-  const [isLoadingSamples, setIsLoadingSamples] = useState(false)
-
-  useEffect(() => {
-    let isMounted = true
-
-    const fetchSampleRepos = async () => {
-      setIsLoadingSamples(true)
-
-      try {
-        const response = await axios.get(`${API_BASE_URL}/sample-repos`)
-        if (isMounted) {
-          setSampleRepos(response.data?.repos || [])
-        }
-      } catch {
-        if (isMounted) {
-          setSampleRepos([])
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoadingSamples(false)
-        }
-      }
-    }
-
-    fetchSampleRepos()
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
 
   const helperText = useMemo(
     () => 'We will map repo boundaries, score the risk profile, and suggest the extraction order.',
