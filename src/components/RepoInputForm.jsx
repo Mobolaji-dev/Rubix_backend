@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import axios from 'axios'
 
-const SAMPLE_REPO = 'https://github.com/vercel/next.js'
+const API_BASE_URL = 'http://localhost:8000'
 
 function isValidRepoUrl(value) {
   if (!value?.trim()) {
@@ -17,13 +18,44 @@ function isValidRepoUrl(value) {
 export default function RepoInputForm({ onSubmit }) {
   const [repoUrl, setRepoUrl] = useState('')
   const [error, setError] = useState('')
+  const [sampleRepos, setSampleRepos] = useState([])
+  const [isLoadingSamples, setIsLoadingSamples] = useState(false)
+
+  useEffect(() => {
+    let isMounted = true
+
+    const fetchSampleRepos = async () => {
+      setIsLoadingSamples(true)
+
+      try {
+        const response = await axios.get(`${API_BASE_URL}/sample-repos`)
+        if (isMounted) {
+          setSampleRepos(response.data?.repos || [])
+        }
+      } catch {
+        if (isMounted) {
+          setSampleRepos([])
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingSamples(false)
+        }
+      }
+    }
+
+    fetchSampleRepos()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const helperText = useMemo(
     () => 'We will map repo boundaries, score the risk profile, and suggest the extraction order.',
     [],
   )
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
 
     const normalized = repoUrl.trim()
@@ -35,13 +67,15 @@ export default function RepoInputForm({ onSubmit }) {
 
     setError('')
 
-    if (typeof onSubmit === 'function') {
-      onSubmit(normalized)
+    if (typeof onSubmit !== 'function') {
       return
     }
 
-    // TODO: replace with real route transition or callback once the processing flow exists.
-    console.info('Repo submit ready:', normalized)
+    try {
+      await onSubmit(normalized, 'main')
+    } catch (submitError) {
+      setError(submitError.response?.data?.detail || 'Failed to start analysis')
+    }
   }
 
   return (
@@ -77,19 +111,37 @@ export default function RepoInputForm({ onSubmit }) {
         ) : null}
       </div>
 
+      <div className="sample-repo-panel">
+        <div className="sample-repo-header">
+          <span className="field-label">Sample repositories</span>
+          {isLoadingSamples ? <span className="sample-repo-status">loading...</span> : null}
+        </div>
+
+        {sampleRepos.length ? (
+          <div className="sample-repo-grid">
+            {sampleRepos.map((sampleRepo) => (
+              <button
+                key={sampleRepo.id}
+                type="button"
+                className="sample-repo-card"
+                onClick={() => {
+                  setRepoUrl(sampleRepo.repo_url)
+                  setError('')
+                }}
+              >
+                <span className="sample-repo-label">{sampleRepo.label}</span>
+                <span className="sample-repo-description">{sampleRepo.description}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="field-hint">Sample repositories are temporarily unavailable.</p>
+        )}
+      </div>
+
       <div className="form-actions">
         <button type="submit" className="button-primary">
           Analyze Repo
-        </button>
-        <button
-          type="button"
-          className="button-secondary sample-button"
-          onClick={() => {
-            setRepoUrl(SAMPLE_REPO)
-            setError('')
-          }}
-        >
-          Try with a sample repo
         </button>
       </div>
     </form>

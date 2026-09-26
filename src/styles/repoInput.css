@@ -55,6 +55,13 @@
   gap: 2px;
 }
 
+.brand-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.18);
+}
+
 .brand-name {
   font-size: 1rem;
   font-weight: 600;
@@ -297,6 +304,66 @@
   min-height: 72px;
   color: var(--color-ink-soft);
   font-size: 0.86rem;
+}
+
+.sample-repo-panel {
+  display: grid;
+  gap: var(--spacing-md);
+}
+
+.sample-repo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.sample-repo-status {
+  color: var(--color-ink-soft);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sample-repo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--spacing-md);
+}
+
+.sample-repo-card {
+  display: grid;
+  gap: var(--spacing-xs);
+  width: 100%;
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--rounded-lg);
+  background: rgba(255, 255, 255, 0.01);
+  color: var(--color-ink);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 200ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 200ms cubic-bezier(0.4, 0, 0.2, 1), transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sample-repo-card:hover,
+.sample-repo-card:focus-visible {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-glow-focus);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.sample-repo-label {
+  color: var(--color-ink);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.sample-repo-description {
+  color: var(--color-ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.5;
 }
 
 @media (max-width: 1024px) {
