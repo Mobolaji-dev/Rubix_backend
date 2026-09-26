@@ -25,6 +25,12 @@ app.add_middleware(
 app.include_router(router)
 
 
+@app.get("/")
+async def root():
+    return {"status": "ok", "service": "Repo Decomposition Advisor Backend"}
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
