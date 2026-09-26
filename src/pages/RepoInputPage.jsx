@@ -11,9 +11,6 @@ export default function RepoInputPage({ onSubmit }) {
           <div className="hero-copy">
             <p className="eyebrow">Repository intake</p>
             <h1 id="repo-input-title">Analyze a repo</h1>
-            <p className="lead">
-              boundary map, risk scores, extraction order
-            </p>
           </div>
 
           <RepoInputForm onSubmit={onSubmit} />

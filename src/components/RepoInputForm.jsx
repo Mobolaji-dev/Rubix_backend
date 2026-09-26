@@ -100,7 +100,9 @@ export default function RepoInputForm({ onSubmit }) {
             aria-invalid={Boolean(error)}
             aria-describedby={error ? 'repo-url-error' : 'repo-url-hint'}
           />
+          
         </div>
+        
         <p id="repo-url-hint" className="field-hint">
           {helperText}
         </p>
@@ -111,7 +113,9 @@ export default function RepoInputForm({ onSubmit }) {
         ) : null}
       </div>
 
-      <div className="sample-repo-panel">
+
+      
+      {/* <div className="sample-repo-panel">
         <div className="sample-repo-header">
           <span className="field-label">Sample repositories</span>
           {isLoadingSamples ? <span className="sample-repo-status">loading...</span> : null}
@@ -137,7 +141,7 @@ export default function RepoInputForm({ onSubmit }) {
         ) : (
           <p className="field-hint">Sample repositories are temporarily unavailable.</p>
         )}
-      </div>
+      </div> */}
 
       <div className="form-actions">
         <button type="submit" className="button-primary">
