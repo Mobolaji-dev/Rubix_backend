@@ -171,8 +171,10 @@ def _download_github_zip_sync(repo_url: str, repo_ref: str, target_dir: str) -> 
 
     owner, repo = match.group(1), match.group(2)
     branch = repo_ref or "main"
+    github_token = os.environ.get("GITHUB_TOKEN") or getattr(settings, "GITHUB_TOKEN", None)
 
     urls_to_try = [
+        f"https://api.github.com/repos/{owner}/{repo}/zipball/{branch}",
         f"https://codeload.github.com/{owner}/{repo}/zip/refs/heads/{branch}",
         f"https://codeload.github.com/{owner}/{repo}/zip/refs/heads/main",
         f"https://codeload.github.com/{owner}/{repo}/zip/refs/heads/master",
@@ -180,13 +182,14 @@ def _download_github_zip_sync(repo_url: str, repo_ref: str, target_dir: str) -> 
     ]
 
     downloaded_bytes = None
+    headers = {"User-Agent": "Rubix-Decomposition-Advisor/1.0"}
+    if github_token:
+        headers["Authorization"] = f"token {github_token}"
+
     for zip_url in urls_to_try:
         try:
-            req = urllib.request.Request(
-                zip_url,
-                headers={"User-Agent": "Rubix-Decomposition-Advisor/1.0"}
-            )
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            req = urllib.request.Request(zip_url, headers=headers)
+            with urllib.request.urlopen(req, timeout=20) as resp:
                 if resp.status == 200:
                     downloaded_bytes = resp.read()
                     break
@@ -194,7 +197,10 @@ def _download_github_zip_sync(repo_url: str, repo_ref: str, target_dir: str) -> 
             continue
 
     if not downloaded_bytes:
-        raise RuntimeError(f"Failed to fetch repository zip archive for '{owner}/{repo}'. Please verify repository URL and visibility.")
+        raise RuntimeError(
+            f"Failed to fetch repository zip archive for '{owner}/{repo}'. "
+            f"If '{owner}/{repo}' is a private repository, please change its visibility to Public on GitHub."
+        )
 
     with zipfile.ZipFile(io.BytesIO(downloaded_bytes)) as zf:
         namelist = zf.namelist()
