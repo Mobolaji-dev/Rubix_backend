@@ -43,7 +43,6 @@ Engineering teams moving monolithic codebases to microservices face a high-frict
 | `POST` | `/analyze` | Kick off repo decomposition job (`repo_url`, `repo_ref`) |
 | `GET` | `/analyze/{job_id}/status` | Poll execution status, `progress_pct`, and live log lines |
 | `GET` | `/analyze/{job_id}/result` | Fetch completed microservice breakdown & risk payload |
-| `GET` | `/sample-repos` | List preset demo repositories for landing page |
 | `GET` | `/health` | Health check endpoint |
 
 ---

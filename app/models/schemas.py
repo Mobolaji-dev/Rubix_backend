@@ -71,19 +71,3 @@ class AnalysisResult(BaseModel):
     services: List[ProposedService]
     summary: ResultSummary
 
-
-# ---------------------------------------------------------------------------
-# Sample repos
-# ---------------------------------------------------------------------------
-
-class SampleRepo(BaseModel):
-    id: str
-    label: str
-    description: str
-    repo_url: str
-    repo_ref: str = "main"
-
-
-class SampleReposResponse(BaseModel):
-    repos: List[SampleRepo]
-

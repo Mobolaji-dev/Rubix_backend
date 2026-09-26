@@ -6,7 +6,6 @@ Routes implemented:
   POST /analyze                       → kick off a new analysis job
   GET  /analyze/{job_id}/status       → poll job progress & step logs
   GET  /analyze/{job_id}/result       → fetch completed analysis result
-  GET  /sample-repos                  → list pre-approved demo repos
 """
 
 from __future__ import annotations
@@ -29,29 +28,9 @@ from app.models.schemas import (
     JobStatus,
     ProposedService,
     ResultSummary,
-    SampleRepo,
-    SampleReposResponse,
 )
 
 router = APIRouter()
-
-
-# ---------------------------------------------------------------------------
-# Pre-approved Sample Repos
-# ---------------------------------------------------------------------------
-
-SAMPLE_REPOS: List[SampleRepo] = [
-    SampleRepo(
-        id="cmpdx",
-        label="CMPDx — Squad Accountability System",
-        description=(
-            "FastAPI + Supabase + React monolith with Goal Architect agent, Leaderboard, "
-            "Insights Engine, and Activity Feed all sharing core users/tasks tables."
-        ),
-        repo_url="https://github.com/your-org/cmpdx-hackathon-fork",
-        repo_ref="main",
-    )
-]
 
 
 # ---------------------------------------------------------------------------
@@ -100,15 +79,6 @@ async def get_result(job_id: str):
     if result is None:
         raise HTTPException(status_code=500, detail="Result unexpectedly missing")
     return result
-
-
-# ---------------------------------------------------------------------------
-# GET /sample-repos
-# ---------------------------------------------------------------------------
-
-@router.get("/sample-repos", response_model=SampleReposResponse)
-async def list_sample_repos():
-    return SampleReposResponse(repos=SAMPLE_REPOS)
 
 
 # ---------------------------------------------------------------------------
