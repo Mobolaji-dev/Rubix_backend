@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import axios from 'axios'
 
-const API_BASE_URL = 'http://localhost:8000'
+const API_BASE_URL = 'https://rubixbackend.pxxl.click/'
 
 // The backend requires a job_id-driven polling flow after the initial POST; this split between
 // `startAnalysis` and `pollJob` avoids firing a second `/analyze` call on the processing screen.
