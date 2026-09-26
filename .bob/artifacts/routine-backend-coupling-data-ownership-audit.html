@@ -1,0 +1,818 @@
+
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>routine-backend — Coupling &amp; Data Ownership Audit</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"Segoe UI",system-ui,sans-serif;font-size:14px;line-height:1.6;background:#f7f8fa;color:#1f2328;padding:32px 16px 56px}
+.page{max-width:960px;margin:0 auto}
+h1{font-size:22px;font-weight:700;margin-bottom:4px}
+.subtitle{color:#57606a;font-size:13px;margin-bottom:30px}
+
+/* ── Severity pill ── */
+.sev{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap}
+.sev-high  {background:#fee2e2;color:#991b1b;border:1px solid #fca5a5}
+.sev-med   {background:#fef3c7;color:#92400e;border:1px solid #fcd34d}
+.sev-low   {background:#dcfce7;color:#166534;border:1px solid #86efac}
+.sev-info  {background:#e0e7ff;color:#3730a3;border:1px solid #a5b4fc}
+
+/* ── Direction chips ── */
+.dir{display:inline-block;padding:1px 7px;border-radius:4px;font-size:11px;font-weight:600;margin:1px 2px}
+.dir-r {background:#dbeafe;color:#1e40af}
+.dir-w {background:#fee2e2;color:#991b1b}
+.dir-rw{background:#ede9fe;color:#5521b5}
+
+/* ── BC color dots ── */
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:middle}
+.bc1{background:#3b82f6}.bc2{background:#10b981}.bc3{background:#f59e0b}
+.bc4{background:#8b5cf6}.bc5{background:#ef4444}.bc6{background:#06b6d4}
+.bc7{background:#f97316}.bc8{background:#6b7280}
+
+/* ── Summary scorecard ── */
+.scorecard{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px}
+.score-card{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;text-align:center}
+.score-num{font-size:28px;font-weight:800;line-height:1}
+.score-label{font-size:12px;color:#57606a;margin-top:4px}
+.score-high  .score-num{color:#dc2626}
+.score-med   .score-num{color:#d97706}
+.score-low   .score-num{color:#16a34a}
+.score-total .score-num{color:#3b82f6}
+
+/* ── Section headers ── */
+.section-title{font-size:15px;font-weight:700;margin:28px 0 10px;padding-bottom:6px;border-bottom:2px solid #e5e7eb}
+
+/* ── Ownership table ── */
+.own-table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:28px}
+.own-table th{background:#f7f8fa;padding:9px 14px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #e5e7eb}
+.own-table td{padding:8px 14px;border-bottom:1px solid #f0f0f2;vertical-align:top;font-size:12px}
+.own-table tr:last-child td{border-bottom:none}
+.own-table .table-name{font-family:"SF Mono","Fira Mono",monospace;font-weight:600;font-size:12px}
+.acc-cell{display:flex;flex-wrap:wrap;gap:3px}
+.bc-badge{display:inline-flex;align-items:center;font-size:11px;padding:2px 6px;border-radius:4px;background:#f7f8fa;border:1px solid #e5e7eb;font-weight:500;white-space:nowrap}
+
+/* ── Coupling issue cards ── */
+.issue-group{margin-bottom:28px}
+.issue-group-title{font-size:13px;font-weight:700;color:#57606a;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+.issue{background:#fff;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:10px;overflow:hidden}
+.issue-header{display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid #f0f0f2;background:#f7f8fa}
+.issue-title{font-weight:700;font-size:13px;flex:1}
+.issue-body{padding:12px 16px;font-size:12px}
+.issue-row{display:flex;gap:8px;margin-bottom:6px;align-items:baseline}
+.issue-row:last-child{margin-bottom:0}
+.row-label{font-weight:700;color:#57606a;min-width:110px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;flex-shrink:0}
+.row-val{color:#1f2328;line-height:1.5}
+.code{font-family:"SF Mono","Fira Mono",monospace;background:#f3f4f6;padding:1px 5px;border-radius:3px;font-size:11px}
+.arrow{color:#9ca3af;margin:0 4px}
+.fix-box{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:8px 12px;margin-top:8px;font-size:12px;color:#166534}
+.fix-box strong{color:#14532d}
+
+/* ── Function call graph ── */
+.call-table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:28px}
+.call-table th{background:#f7f8fa;padding:8px 14px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #e5e7eb}
+.call-table td{padding:7px 14px;border-bottom:1px solid #f0f0f2;font-size:12px;vertical-align:top}
+.call-table tr:last-child td{border-bottom:none}
+.fn{font-family:"SF Mono","Fira Mono",monospace;font-size:11px;color:#1e40af}
+.cycle-row{background:#fff7ed}
+.cycle-badge{font-size:10px;font-weight:700;background:#fed7aa;color:#9a3412;padding:1px 5px;border-radius:4px;margin-left:4px}
+
+/* ── Private symbol table ── */
+.private-table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:28px}
+.private-table th{background:#f7f8fa;padding:8px 14px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #e5e7eb}
+.private-table td{padding:7px 14px;border-bottom:1px solid #f0f0f2;font-size:12px}
+.private-table tr:last-child td{border-bottom:none}
+
+footer{text-align:center;font-size:12px;color:#57606a;border-top:1px solid #e5e7eb;padding-top:20px;margin-top:40px}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>routine-backend — Coupling &amp; Data Ownership Audit</h1>
+<p class="subtitle">Ground truth extracted from import graphs and <code>sb.table()</code> / <code>sb.rpc()</code> call sites across all 28 source files.</p>
+
+
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;background:#fff;padding:12px 16px;border:1px solid #e5e7eb;border-radius:8px;font-size:12px;align-items:center">
+  <strong style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#57606a">BCs:</strong>
+  <span><span class="dot bc1"></span>Identity &amp; Access</span>
+  <span><span class="dot bc2"></span>Routine Execution</span>
+  <span><span class="dot bc3"></span>Streak &amp; Consistency</span>
+  <span><span class="dot bc4"></span>Competition &amp; Ranking</span>
+  <span><span class="dot bc5"></span>Squad Membership</span>
+  <span><span class="dot bc6"></span>Squad Feed</span>
+  <span><span class="dot bc7"></span>Analytics</span>
+  <span><span class="dot bc8"></span>AI Architect</span>
+  <span style="margin-left:10px"><span class="dir dir-r">R</span> read-only</span>
+  <span><span class="dir dir-w">W</span> writes (insert/update/delete/upsert)</span>
+  <span><span class="dir dir-rw">RW</span> both</span>
+</div>
+
+
+<div class="scorecard">
+  <div class="score-card score-high"><div class="score-num">5</div><div class="score-label">High severity<br />violations</div></div>
+  <div class="score-card score-med"><div class="score-num">7</div><div class="score-label">Medium severity<br />issues</div></div>
+  <div class="score-card score-low"><div class="score-num">5</div><div class="score-label">Low / acceptable<br />cross-reads</div></div>
+  <div class="score-card score-total"><div class="score-num">2</div><div class="score-label">Circular import<br />risks</div></div>
+</div>
+
+
+
+<div class="section-title">1 · Database Table Ownership &amp; Cross-Context Access</div>
+<p style="font-size:12px;color:#57606a;margin-bottom:10px">Owner = BC that CREATEs (INSERT/UPSERT) or DELETEs the record as its primary authority. Other BCs that touch the table are listed with their access type.</p>
+
+<table class="own-table">
+  <thead>
+    <tr><th>Table</th><th>Owner BC</th><th>Cross-Context Readers / Writers</th><th>Violation?</th></tr>
+  </thead>
+  <tbody>
+
+    <tr>
+      <td class="table-name">users</td>
+      <td><span class="dot bc1"></span>Identity &amp; Access</td>
+      <td><div class="acc-cell">
+        <span class="bc-badge"><span class="dot bc2"></span><span class="dir dir-r">R</span> task.py — timezone, username, squad_id</span>
+        <span class="bc-badge"><span class="dot bc2"></span><span class="dir dir-r">R</span> checkins router</span>
+        <span class="bc-badge"><span class="dot bc3"></span><span class="dir dir-r">R</span> streak.py — username, squad_id, timezone</span>
+        <span class="bc-badge"><span class="dot bc4"></span><span class="dir dir-r">R</span> leaderboard.py — username, squad_id</span>
+        <span class="bc-badge"><span class="dot bc5"></span><span class="dir dir-rw">RW</span> squads.py — squad_id UPDATE + SELECT</span>
+        <span class="bc-badge"><span class="dot bc5"></span><span class="dir dir-r">R</span> friends router — username lookup</span>
+        <span class="bc-badge"><span class="dot bc6"></span><span class="dir dir-r">R</span> feed.py — username</span>
+        <span class="bc-badge"><span class="dot bc6"></span><span class="dir dir-r">R</span> notifications.py — username</span>
+        <span class="bc-badge"><span class="dot bc7"></span><span class="dir dir-r">R</span> performance.py — timezone</span>
+        <span class="bc-badge"><span class="dot bc8"></span><span class="dir dir-r">R</span> architect tools — timezone</span>
+        <span class="bc-badge"><span class="dot bc8"></span><span class="dir dir-r">R</span> architect router — timezone, username</span>
+        <span class="bc-badge"><span class="dot bc1"></span><span class="dir dir-r">R</span> auto_miss job — username, squad_id, timezone</span>
+      </div></td>
+      <td><span class="sev sev-med">⚠ Medium — squad_id UPDATE by Squad BC</span></td>
+    </tr>
+
+    <tr>
+      <td class="table-name">tasks</td>
+      <td><span class="dot bc2"></span>Routine Execution</td>
+      <td><div class="acc-cell">
+        <span class="bc-badge"><span class="dot bc2"></span><span class="dir dir-rw">RW</span> checkins router — INSERT / DELETE / UPDATE tasks directly</span>
+        <span class="bc-badge"><span class="dot bc3"></span><span class="dir dir-r">R</span> streak.py — date, status (via RPC)</span>
+        <span class="bc-badge"><span class="dot bc4"></span><span class="dir dir-r">R</span> leaderboard.py — user_id, status, date</span>
+        <span class="bc-badge"><span class="dot bc5"></span><span class="dir dir-r">R</span> friends router — date, status (graph endpoint)</span>
+        <span class="bc-badge"><span class="dot bc6"></span><span class="dir dir-r">R</span> feed.py (get_feed_summary) — status</span>
+        <span class="bc-badge"><span class="dot bc7"></span><span class="dir dir-r">R</span> performance.py — date, status (365d window)</span>
+        <span class="bc-badge"><span class="dot bc8"></span><span class="dir dir-rw">RW</span> architect router — INSERT standalone task, UPDATE window_start/window_end</span>
+        <span class="bc-badge"><span class="dot bc8"></span><span class="dir dir-r">R</span> architect tools — all task fields</span>
+        <span class="bc-badge"><span class="dot bc2"></span><span class="dir dir-w">W</span> auto_miss job — UPDATE status→missed</span>
+        <span class="bc-badge"><span class="dot bc4"></span><span class="dir dir-r">R</span> leaderboard ranks endpoint — date, status (YTD)</span>
+      </div></td>
+      <td><span class="sev sev-high">🔴 High — checkins router + AI Architect write directly to tasks</span></td>
+    </tr>
+
+    <tr>
+      <td class="table-name">checkins</td>
+      <td><span class="dot bc2"></span>Routine Execution</td>
+      <td><div class="acc-cell">
+        <span class="bc-badge"><span class="dot bc3"></span><span class="dir dir-r">R</span> streak.py — date, marked_done (via RPC recalculate_streak_db)</span>
+        <span class="bc-badge"><span class="dot bc4"></span><span class="dir dir-r">R</span> leaderboard ranks endpoint — marked_done, date (YTD)</span>
+        <span class="bc-badge"><span class="dot bc5"></span><span class="dir dir-r">R</span> squads.py (_build_squad_response) — marked_done (today)</span>
+        <span class="bc-badge"><span class="dot bc5"></span><span class="dir dir-r">R</span> friends router — week checkins, streak count</span>
+        <span class="bc-badge"><span class="dot bc7"></span><span class="dir dir-r">R</span> performance.py — date, marked_done</span>
+      </div></td>
+      <td><span class="sev sev-low">✅ Low — all cross-reads are narrow projections</span></td>
+    </tr>
+
+    <tr>
+      <td class="table-name">day_templates</td>
+      <td><span class="dot bc2"></span>Routine Execution</td>
+      <td><div class="acc-cell">
+        <span class="bc-badge"><span class="dot bc8"></span><span class="dir dir-r">R</span> architect tools (load_blueprint) — day_name, todos SELECT</span>
+        <span class="bc-badge"><span class="dot bc8"></span><span class="dir dir-w">W</span> architect router (commit) — UPSERT via <span class="code">commit_blueprint</span> RPC</span>
+      </div></td>
+      <td><span class="sev sev-med">⚠ Medium — AI Architect bypasses Routine Execution service layer on commit</span></td>
+    </tr>
+
+    <tr>
+      <td class="table-name">streaks</td>
+      <td><span class="dot bc3"></span>Streak &amp; Consistency</td>
+      <td><div class="acc-cell">
+        <span class="bc-badge"><span class="dot bc4"></span><span class="dir dir-r">R</span> leaderboard.py — current_streak (weekly scoring)</span>
+        <span class="bc-badge"><span class="dot bc5"></span><span class="dir dir-r">R</span> squads.py — current_streak, longest_streak (member card)</span>
+        <span class="bc-badge"><span class="dot bc5"></span><span class="dir dir-r">R</span> friends router — full streak row</span>
+        <span class="bc-badge"><span class="dot bc7"></span><span class="dir dir-r">R</span> performance.py — current, longest</span>
+      </div></td>
+      <td><span class="sev sev-low">✅ Low — all cross-reads only, no foreign writes</span></td>
+    </tr>
+
+    <tr>
+      <td class="table-name">rank_points</td>
+      <td><span class="dot bc4"></span>Competition &amp; Ranking</td>
+      <td><div class="acc-cell">
+        <span class="bc-badge"><span class="dot bc5"></span><span class="dir dir-rw">RW</span> squads.py (_ensure_rank_row) — UPSERT to seed a row for new member</span>
+        <span class="bc-badge"><span class="dot bc5"></span><span class="dir dir-r">R</span> squads.py (_build_squad_response) — tier, division, shield_count</span>
+        <span class="bc-badge"><span class="dot bc7"></span><span class="dir dir-r">R</span> performance.py (public profile) — tier, division</span>
+        <span class="bc-badge"><span class="dot bc5"></span><span class="dir dir-r">R</span> friends not needed — leaderboard router handles this</span>
+      </div></td>
+      <td><span class="sev sev-high">🔴 High — Squad BC writes to rank_points (seed row) — owns it for member onboarding</span></td>
+    </tr>
+
+    <tr>
+      <td class="table-name">leaderboard_entries</td>
+      <td><span class="dot bc4"></span>Competition &amp; Ranking</td>
+      <td><div class="acc-cell">
+        <span class="bc-badge"><span class="dot bc7"></span><span class="dir dir-r">R</span> performance.py — rank_position, week_start (week history)</span>
+        <span class="bc-badge"><span class="dot bc8"></span><span class="dir dir-r">R</span> architect tools (get_week_history) — via performance.py</span>
+      </div></td>
+      <td><span class="sev sev-low">✅ Low — only read by Analytics, no foreign writes</span></td>
+    </tr>
+
+    <tr>
+      <td class="table-name">feed_entries</td>
+      <td><span class="dot bc6"></span>Squad Feed</td>
+      <td><div class="acc-cell">
+        <span class="bc-badge"><span class="dot bc6"></span><span class="dir dir-r">R</span> feed.py (get_feed_summary) — reads streak_broken events</span>
+      </div></td>
+      <td><span class="sev sev-low">✅ Low — internal read within same BC</span></td>
+    </tr>
+
+    <tr>
+      <td class="table-name">feed_views</td>
+      <td><span class="dot bc6"></span>Squad Feed</td>
+      <td style="color:#9ca3af;font-style:italic">No cross-context access</td>
+      <td><span class="sev sev-low">✅ Clean</span></td>
+    </tr>
+
+    <tr>
+      <td class="table-name">push_subscriptions</td>
+      <td><span class="dot bc6"></span>Squad Feed</td>
+      <td style="color:#9ca3af;font-style:italic">No cross-context access</td>
+      <td><span class="sev sev-low">✅ Clean</span></td>
+    </tr>
+
+    <tr>
+      <td class="table-name">squads</td>
+      <td><span class="dot bc5"></span>Squad Membership</td>
+      <td><div class="acc-cell">
+        <span class="bc-badge"><span class="dot bc4"></span><span class="dir dir-r">R</span> weekly_reset job — SELECT id, name (all squads with members)</span>
+        <span class="bc-badge"><span class="dot bc5"></span><span class="dir dir-r">R</span> contact router — name, member_count</span>
+        <span class="bc-badge"><span class="dot bc5"></span><span class="dir dir-r">R</span> squads router (user/{user_id}) — name, member_count</span>
+      </div></td>
+      <td><span class="sev sev-low">✅ Low — competition job reads squad list; no writes outside owner</span></td>
+    </tr>
+
+    <tr>
+      <td class="table-name">friendships</td>
+      <td><span class="dot bc5"></span>Squad Membership</td>
+      <td style="color:#9ca3af;font-style:italic">No cross-context access</td>
+      <td><span class="sev sev-low">✅ Clean</span></td>
+    </tr>
+
+    <tr>
+      <td class="table-name">friend_requests</td>
+      <td><span class="dot bc5"></span>Squad Membership</td>
+      <td style="color:#9ca3af;font-style:italic">No cross-context access</td>
+      <td><span class="sev sev-low">✅ Clean</span></td>
+    </tr>
+
+    <tr>
+      <td class="table-name">architect_sessions</td>
+      <td><span class="dot bc8"></span>AI Architect</td>
+      <td style="color:#9ca3af;font-style:italic">No cross-context access</td>
+      <td><span class="sev sev-low">✅ Clean</span></td>
+    </tr>
+
+    <tr>
+      <td class="table-name">user_context</td>
+      <td><span class="dot bc8"></span>AI Architect</td>
+      <td style="color:#9ca3af;font-style:italic">No cross-context access</td>
+      <td><span class="sev sev-low">✅ Clean</span></td>
+    </tr>
+
+    <tr>
+      <td class="table-name">password_reset_tokens</td>
+      <td><span class="dot bc1"></span>Identity &amp; Access</td>
+      <td style="color:#9ca3af;font-style:italic">No cross-context access</td>
+      <td><span class="sev sev-low">✅ Clean</span></td>
+    </tr>
+
+    <tr>
+      <td class="table-name">job_locks</td>
+      <td colspan="2">Shared infrastructure — accessed only via RPC by <code>auto_miss</code> job and <code>weekly_reset</code> job</td>
+      <td><span class="sev sev-info">ℹ Infra shared kernel</span></td>
+    </tr>
+
+  </tbody>
+</table>
+
+
+
+<div class="section-title">2 · Cross-Context Function Call Graph</div>
+<p style="font-size:12px;color:#57606a;margin-bottom:10px">Every import of a service from a different bounded context, with call site file and line reference.</p>
+
+<table class="call-table">
+  <thead>
+    <tr><th>Calling BC / File</th><th>Imported Symbol</th><th>Target BC</th><th>Direction</th><th>Note</th></tr>
+  </thead>
+  <tbody>
+
+    <tr>
+      <td><span class="dot bc2"></span>routers/tasks.py:215-217</td>
+      <td><span class="fn">recalculate_streak()</span></td>
+      <td><span class="dot bc3"></span>Streak</td>
+      <td>→</td>
+      <td>Inline import inside confirm_timer — avoids top-level circular</td>
+    </tr>
+    <tr>
+      <td><span class="dot bc2"></span>routers/tasks.py:216</td>
+      <td><span class="fn">award_points(), check_and_trigger_leaderboard_events()</span></td>
+      <td><span class="dot bc4"></span>Competition</td>
+      <td>→</td>
+      <td>Inline import; fired as asyncio.gather side-effect on task confirm</td>
+    </tr>
+    <tr>
+      <td><span class="dot bc2"></span>routers/tasks.py:217</td>
+      <td><span class="fn">post_feed_event()</span></td>
+      <td><span class="dot bc6"></span>Squad Feed</td>
+      <td>→</td>
+      <td>Inline import; posts task_completed event</td>
+    </tr>
+    <tr>
+      <td><span class="dot bc2"></span>routers/tasks.py:24</td>
+      <td><span class="fn">invalidate_performance_cache()</span></td>
+      <td><span class="dot bc7"></span>Analytics</td>
+      <td>→</td>
+      <td>Top-level import; called on every task mutation (allocate, start, extend, reignite, confirm, abandon)</td>
+    </tr>
+    <tr>
+      <td><span class="dot bc2"></span>services/task.py:10–11</td>
+      <td><span class="fn">post_feed_event(), recalculate_streak()</span></td>
+      <td><span class="dot bc6"></span>Squad Feed + <span class="dot bc3"></span>Streak</td>
+      <td>→</td>
+      <td>Top-level imports; task.py abandon_task calls both</td>
+    </tr>
+
+    <tr style="background:#fef9f0">
+      <td><span class="dot bc2"></span>routers/checkins.py:9</td>
+      <td><span class="fn">recalculate_streak()</span></td>
+      <td><span class="dot bc3"></span>Streak</td>
+      <td>→</td>
+      <td>Top-level import; called on undone, and inline on tick/mark_done</td>
+    </tr>
+    <tr style="background:#fef9f0">
+      <td><span class="dot bc2"></span>routers/checkins.py:155-157</td>
+      <td><span class="fn">recalculate_streak(), award_points(), post_feed_event()</span></td>
+      <td><span class="dot bc3"></span> + <span class="dot bc4"></span> + <span class="dot bc6"></span></td>
+      <td>→</td>
+      <td>Inline imports in tick_todo — 3-BC fan-out from a single checkin router handler</td>
+    </tr>
+    <tr style="background:#fef9f0">
+      <td><span class="dot bc2"></span>routers/checkins.py:10</td>
+      <td><span class="fn">invalidate_performance_cache()</span></td>
+      <td><span class="dot bc7"></span>Analytics</td>
+      <td>→</td>
+      <td>Top-level import; called on mark_done and undone</td>
+    </tr>
+    <tr style="background:#fef9f0">
+      <td><span class="dot bc2"></span>routers/checkins.py:216–217</td>
+      <td><span class="fn">award_points(), check_and_trigger_leaderboard_events(), post_feed_event()</span></td>
+      <td><span class="dot bc4"></span> + <span class="dot bc6"></span></td>
+      <td>→</td>
+      <td>Inline imports in mark_done — same 3-BC fan-out pattern as tick_todo</td>
+    </tr>
+
+    <tr>
+      <td><span class="dot bc5"></span>routers/squads.py:7</td>
+      <td><span class="fn">post_feed_event()</span></td>
+      <td><span class="dot bc6"></span>Squad Feed</td>
+      <td>→</td>
+      <td>Top-level import; used in request_join route</td>
+    </tr>
+    <tr>
+      <td><span class="dot bc5"></span>services/squads.py:7</td>
+      <td><span class="fn">post_feed_event()</span></td>
+      <td><span class="dot bc6"></span>Squad Feed</td>
+      <td>→</td>
+      <td>Top-level import; called on create_squad and join_squad</td>
+    </tr>
+
+    <tr>
+      <td><span class="dot bc3"></span>services/streak.py:55–56</td>
+      <td><span class="fn">post_feed_event(), send_push_to_user()</span></td>
+      <td><span class="dot bc6"></span>Squad Feed</td>
+      <td>→</td>
+      <td>Inline imports inside recalculate_streak — only fires on milestone/break</td>
+    </tr>
+    <tr>
+      <td><span class="dot bc4"></span>services/leaderboard.py:65</td>
+      <td><span class="fn">post_feed_event()</span></td>
+      <td><span class="dot bc6"></span>Squad Feed</td>
+      <td>→</td>
+      <td>Inline import in award_points — fires on tier promotion</td>
+    </tr>
+    <tr>
+      <td><span class="dot bc4"></span>services/leaderboard.py:152</td>
+      <td><span class="fn">post_feed_event()</span></td>
+      <td><span class="dot bc6"></span>Squad Feed</td>
+      <td>→</td>
+      <td>Inline import in close_week</td>
+    </tr>
+    <tr>
+      <td><span class="dot bc4"></span>services/leaderboard.py:153</td>
+      <td><span class="fn">promote_user(), demote_user()</span></td>
+      <td><span class="dot bc4"></span>Competition (rank_system)</td>
+      <td>→</td>
+      <td>Internal — leaderboard → rank_system (same BC)</td>
+    </tr>
+    <tr>
+      <td><span class="dot bc4"></span>services/leaderboard.py:301–342</td>
+      <td><span class="fn">post_feed_event(), send_push_to_user()</span></td>
+      <td><span class="dot bc6"></span>Squad Feed</td>
+      <td>→</td>
+      <td>Inline imports in check_and_trigger_leaderboard_events — rank_surpassed + leaderboard_topped events</td>
+    </tr>
+    <tr>
+      <td><span class="dot bc4"></span>services/rank_system.py:64,122</td>
+      <td><span class="fn">post_feed_event()</span></td>
+      <td><span class="dot bc6"></span>Squad Feed</td>
+      <td>→</td>
+      <td>Inline imports in promote_user and demote_user</td>
+    </tr>
+
+    <tr class="cycle-row">
+      <td><span class="dot bc6"></span>services/feed.py:106 <span class="cycle-badge">⚠ CYCLE RISK</span></td>
+      <td><span class="fn">get_week_leaderboard(), _today_wat(), _week_monday()</span></td>
+      <td><span class="dot bc4"></span>Competition</td>
+      <td>→ (reverse)</td>
+      <td>Inline import in get_feed_summary — Feed calls into Competition. Competition already calls Feed. Mutual dependency mitigated only by inline import placement</td>
+    </tr>
+
+    <tr>
+      <td><span class="dot bc7"></span>services/architect/tools.py:11–12</td>
+      <td><span class="fn">get_ai_signals(), calculate_week_history()</span></td>
+      <td><span class="dot bc7"></span>Analytics</td>
+      <td>→</td>
+      <td>Top-level imports; architect tools consume analytics as read-only signals</td>
+    </tr>
+    <tr class="cycle-row">
+      <td><span class="dot bc8"></span>services/architect/router.py:16 <span class="cycle-badge">⚠ CYCLE RISK</span></td>
+      <td><span class="fn">update_day_template_and_sync()</span></td>
+      <td><span class="dot bc2"></span>Routine Execution</td>
+      <td>→</td>
+      <td>Top-level import — unused in current flow (commit goes via RPC directly); creates a coupling path from Architect → Routine Execution service layer</td>
+    </tr>
+
+    <tr>
+      <td><span class="dot bc2"></span>services/template.py:8</td>
+      <td><span class="fn">_get_user_tz()</span></td>
+      <td><span class="dot bc2"></span>Routine Execution (task.py)</td>
+      <td>→</td>
+      <td>Internal cross-file but <strong>private symbol</strong> (_prefixed) — leaks implementation detail</td>
+    </tr>
+    <tr>
+      <td><span class="dot bc5"></span>routers/dashboard.py:8</td>
+      <td><span class="fn">get_streak()</span></td>
+      <td><span class="dot bc3"></span>Streak</td>
+      <td>→</td>
+      <td>Dashboard (Routine Execution BC's read model) calls Streak service to compose response</td>
+    </tr>
+
+    <tr>
+      <td><span class="dot bc2"></span>jobs/auto_miss.py:6–8</td>
+      <td><span class="fn">post_feed_event(), send_push_to_user(), recalculate_streak()</span></td>
+      <td><span class="dot bc6"></span> + <span class="dot bc3"></span></td>
+      <td>→</td>
+      <td>Auto-miss job fans out to 3 BCs as side-effects after marking tasks missed</td>
+    </tr>
+
+  </tbody>
+</table>
+
+
+
+<div class="section-title">3 · Severity-Graded Violations</div>
+
+<div class="issue-group">
+<div class="issue-group-title">🔴 High — Ownership Boundary Violations</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="sev sev-high">HIGH</span>
+    <span class="issue-title">H-1: Checkins router writes directly to <code>tasks</code> (Routine Execution owns tasks, checkins router bypasses service layer)</span>
+  </div>
+  <div class="issue-body">
+    <div class="issue-row"><span class="row-label">Files</span><span class="row-val"><span class="code">routers/checkins.py:89–115</span></span></div>
+    <div class="issue-row"><span class="row-label">Calls</span><span class="row-val"><span class="code">sb.table("tasks").update()</span>, <span class="code">sb.table("tasks").delete()</span>, <span class="code">sb.table("tasks").insert()</span> — all directly in the HTTP handler, not via <span class="code">services/task.py</span></span></div>
+    <div class="issue-row"><span class="row-label">Why it matters</span><span class="row-val">Task mutation logic (blueprint re-linking, fuzzy title matching, protected-status guard) is duplicated between <span class="code">update_todos</span> and <span class="code">services/template.py</span>. Any future Task invariant (e.g., a one-running-task guard) must be applied in two places or silently breaks one path.</span></div>
+    <div class="fix-box"><strong>Recommended fix:</strong> Introduce <span class="code">services/task.py:replace_day_tasks(user_id, date, new_todos)</span> and call it from both the checkins router and template sync. The service owns all mutation; the router only passes intent.</div>
+  </div>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="sev sev-high">HIGH</span>
+    <span class="issue-title">H-2: AI Architect router writes directly to <code>tasks</code> on commit — bypasses Routine Execution service layer entirely</span>
+  </div>
+  <div class="issue-body">
+    <div class="issue-row"><span class="row-label">Files</span><span class="row-val"><span class="code">services/architect/router.py:253–303</span></span></div>
+    <div class="issue-row"><span class="row-label">Calls</span><span class="row-val"><span class="code">supabase.table("tasks").insert()</span> for standalone tasks; <span class="code">supabase.table("tasks").update(window_start, window_end)</span> for time-window commits; <span class="code">supabase.rpc("commit_blueprint")</span> for blueprints</span></div>
+    <div class="issue-row"><span class="row-label">Why it matters</span><span class="row-val">The blueprint path correctly uses an RPC, but standalone task INSERT and time-window UPDATE skip the task service entirely. If task creation gains required fields (e.g., required window validation, user quota checks), the architect commit path silently bypasses them.</span></div>
+    <div class="fix-box"><strong>Recommended fix:</strong> Route standalone task creation through <span class="code">services/task.create_task()</span> and time-window updates through a new <span class="code">services/task.set_task_window()</span>. The Architect BC should only call into Routine Execution through its published service interface, never through raw table access.</div>
+  </div>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="sev sev-high">HIGH</span>
+    <span class="issue-title">H-3: Squad Membership service writes to <code>rank_points</code> — a table owned by Competition &amp; Ranking</span>
+  </div>
+  <div class="issue-body">
+    <div class="issue-row"><span class="row-label">Files</span><span class="row-val"><span class="code">services/squads.py:161–168</span> (<span class="code">_ensure_rank_row</span>)</span></div>
+    <div class="issue-row"><span class="row-label">Calls</span><span class="row-val"><span class="code">sb.table("rank_points").upsert({"user_id":..., "total_points":0, "tier":"Recruit", ...})</span></span></div>
+    <div class="issue-row"><span class="row-label">Why it matters</span><span class="row-val">The initial rank row is created by the wrong BC. If Competition changes the schema of rank_points (e.g., adds a required <span class="code">season_id</span> column), Squad Membership silently inserts an incomplete row. There are now two places that "own" what constitutes a valid rank record.</span></div>
+    <div class="fix-box"><strong>Recommended fix:</strong> Move <span class="code">_ensure_rank_row</span> into Competition's <span class="code">services/leaderboard.py</span> as <span class="code">initialize_member_rank(user_id)</span>. The <span class="code">join_squad_atomic</span> RPC already handles this transactionally — confirm the RPC upserts rank_points and remove the Python-side call entirely.</div>
+  </div>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="sev sev-high">HIGH</span>
+    <span class="issue-title">H-4: Feed service calls Competition's <code>get_week_leaderboard()</code> — bilateral coupling between Feed and Competition</span>
+  </div>
+  <div class="issue-body">
+    <div class="issue-row"><span class="row-label">Files</span><span class="row-val"><span class="code">services/feed.py:106</span> — inline import inside <span class="code">get_feed_summary()</span></span></div>
+    <div class="issue-row"><span class="row-label">Calls</span><span class="row-val"><span class="code">from app.services.leaderboard import get_week_leaderboard, _today_wat, _week_monday</span></span></div>
+    <div class="issue-row"><span class="row-label">Why it matters</span><span class="row-val">Competition already imports Feed (<span class="code">post_feed_event</span>) in 6 places. Feed now imports Competition back. This is a <strong>bilateral coupling / latent circular dependency</strong>. Any future top-level import on either side will produce an <span class="code">ImportError</span> circular import at startup. The inline import is currently the only thing preventing the crash.</span></div>
+    <div class="fix-box"><strong>Recommended fix:</strong> <span class="code">get_feed_summary</span> should build its rank context by reading <span class="code">rank_points</span> or <span class="code">leaderboard_entries</span> tables directly (it only needs rank position), not by calling the full leaderboard scoring function. Alternatively, move <span class="code">get_feed_summary</span> into a dedicated aggregation module or the profile/analytics layer where multi-BC reads are expected.</div>
+  </div>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="sev sev-high">HIGH</span>
+    <span class="issue-title">H-5: Squad Membership service writes to <code>users.squad_id</code> — a column in the Identity-owned table</span>
+  </div>
+  <div class="issue-body">
+    <div class="issue-row"><span class="row-label">Files</span><span class="row-val"><span class="code">services/squads.py:153</span> — <span class="code">leave_squad</span></span></div>
+    <div class="issue-row"><span class="row-label">Calls</span><span class="row-val"><span class="code">sb.table("users").update({"squad_id": None}).eq("id", user_id)</span></span></div>
+    <div class="issue-row"><span class="row-label">Why it matters</span><span class="row-val"><span class="code">users</span> is owned by Identity &amp; Access. Squad Membership directly mutates a field on the Identity aggregate root. This bypasses any future Identity-side invariants on the user record (e.g., audit logging, event publishing, or cascading side-effects on squad departure).</span></div>
+    <div class="fix-box"><strong>Recommended fix:</strong> This write is already partially handled by <span class="code">join_squad_atomic</span> and <span class="code">create_squad_atomic</span> RPCs. Introduce a corresponding <span class="code">leave_squad_atomic</span> RPC that handles the <span class="code">users.squad_id</span> update and <span class="code">squads.member_count</span> decrement atomically, removing the direct Python-side write to the <span class="code">users</span> table from the Squad Membership service.</div>
+  </div>
+</div>
+</div>
+
+
+<div class="issue-group">
+<div class="issue-group-title">⚠️ Medium — Structural Coupling &amp; Shared Logic Drift</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="sev sev-med">MEDIUM</span>
+    <span class="issue-title">M-1: Routine Execution router handlers fan out directly to 3 BCs on every task state change</span>
+  </div>
+  <div class="issue-body">
+    <div class="issue-row"><span class="row-label">Files</span><span class="row-val"><span class="code">routers/tasks.py:215–217</span>, <span class="code">routers/checkins.py:155–157, 216–217</span></span></div>
+    <div class="issue-row"><span class="row-label">Pattern</span><span class="row-val">Each state-change handler (confirm_timer, tick_todo, mark_done) independently orchestrates: <span class="code">recalculate_streak()</span> → <span class="code">award_points()</span> → <span class="code">post_feed_event()</span> → <span class="code">check_and_trigger_leaderboard_events()</span>. This sequence is duplicated 3× across 2 files with minor variations.</span></div>
+    <div class="issue-row"><span class="row-label">Why it matters</span><span class="row-val">Adding a new side-effect to task completion (e.g., a badge system) requires modifying 3 separate handler functions. The post-completion event sequence should be a single <span class="code">on_task_completed()</span> domain service, not inline orchestration code.</span></div>
+    <div class="fix-box"><strong>Recommended fix:</strong> Extract a <span class="code">services/task_events.py:on_completion(sb, user_id, task, squad_id)</span> coordinator that owns the side-effect sequence. All three handlers call this one function. New side-effects are added in one place.</div>
+  </div>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="sev sev-med">MEDIUM</span>
+    <span class="issue-title">M-2: <code>services/template.py</code> imports a private function <code>_get_user_tz</code> from <code>services/task.py</code></span>
+  </div>
+  <div class="issue-body">
+    <div class="issue-row"><span class="row-label">Files</span><span class="row-val"><span class="code">services/template.py:8</span> — <span class="code">from app.services.task import _get_user_tz</span></span></div>
+    <div class="issue-row"><span class="row-label">Why it matters</span><span class="row-val">The <span class="code">_</span> prefix in Python signals a private/internal symbol. Importing it cross-module means template.py is coupled to an implementation detail of task.py. Renaming or inlining <span class="code">_get_user_tz</span> in task.py is a breaking change for template.py.</span></div>
+    <div class="fix-box"><strong>Recommended fix:</strong> Move <span class="code">_get_user_tz</span> to <span class="code">core/timezone.py</span> as a public <span class="code">get_user_timezone(sb, user_id)</span> utility, since it only queries the <span class="code">users</span> table for the timezone field — a cross-cutting concern, not a task-domain concept.</div>
+  </div>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="sev sev-med">MEDIUM</span>
+    <span class="issue-title">M-3: <code>_DURATION_SUFFIX</code> regex and <code>_clean_title()</code> / <code>_normalize_todos()</code> are duplicated across 3 files</span>
+  </div>
+  <div class="issue-body">
+    <div class="issue-row"><span class="row-label">Files</span><span class="row-val"><span class="code">services/task.py:13–40</span>, <span class="code">services/template.py:11–20</span>, <span class="code">services/architect/tools.py:25–55</span></span></div>
+    <div class="issue-row"><span class="row-label">Why it matters</span><span class="row-val">Identical logic — stripping <span class="code">— N min</span> duration suffixes from todo titles — is copy-pasted across the Routine Execution and AI Architect BCs. A bug fix or regex change must be applied in 3 places.</span></div>
+    <div class="fix-box"><strong>Recommended fix:</strong> Move to <span class="code">core/title_normalizer.py</span> as a single public <span class="code">normalize_todo_title()</span> function imported by all three callers.</div>
+  </div>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="sev sev-med">MEDIUM</span>
+    <span class="issue-title">M-4: Friends router reads directly from <code>checkins</code>, <code>tasks</code>, and <code>streaks</code> tables owned by other BCs</span>
+  </div>
+  <div class="issue-body">
+    <div class="issue-row"><span class="row-label">Files</span><span class="row-val"><span class="code">routers/friends.py:167, 199–200, 219–220</span></span></div>
+    <div class="issue-row"><span class="row-label">Reads</span><span class="row-val"><span class="code">checkins</span> (Routine Execution BC), <span class="code">streaks</span> (Streak BC), <span class="code">tasks</span> (Routine Execution BC) — all direct table queries, not via the owning BC's service layer</span></div>
+    <div class="issue-row"><span class="row-label">Why it matters</span><span class="row-val">The friends router reconstructs checkin and streak read-models in-place (e.g., computing <span class="code">total_days_done</span>, building the activity graph) rather than delegating to the owning service. If the Streak or Checkin schema changes, friends router silently breaks.</span></div>
+    <div class="fix-box"><strong>Recommended fix:</strong> Expose lightweight query methods in the owning services (e.g., <span class="code">streak.get_public_streak(user_id)</span>, <span class="code">checkin.get_user_week(user_id, monday)</span>) that the friends router calls. The owning BC controls the projection shape.</div>
+  </div>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="sev sev-med">MEDIUM</span>
+    <span class="issue-title">M-5: Leaderboard router reads <code>checkins</code> and <code>tasks</code> directly — duplicates projection logic from Analytics BC</span>
+  </div>
+  <div class="issue-body">
+    <div class="issue-row"><span class="row-label">Files</span><span class="row-val"><span class="code">routers/leaderboard.py:112–113</span> in the <span class="code">squad_ranks</span> endpoint</span></div>
+    <div class="issue-row"><span class="row-label">Reads</span><span class="row-val"><span class="code">checkins</span> (marked_done, YTD) and <span class="code">tasks</span> (completed, YTD) to compute <span class="code">all_time_days_done</span> — the same calculation as in <span class="code">performance.py:get_user_performance_summary</span></span></div>
+    <div class="fix-box"><strong>Recommended fix:</strong> Add a <span class="code">performance.get_days_done_batch(user_ids, since)</span> method that computes this for multiple users in parallel. The leaderboard <span class="code">squad_ranks</span> endpoint calls it instead of duplicating the cross-table aggregation.</div>
+  </div>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="sev sev-med">MEDIUM</span>
+    <span class="issue-title">M-6: Auto-miss job orchestrates across 3 BCs without a dedicated job-layer abstraction</span>
+  </div>
+  <div class="issue-body">
+    <div class="issue-row"><span class="row-label">Files</span><span class="row-val"><span class="code">jobs/auto_miss.py:6–8</span></span></div>
+    <div class="issue-row"><span class="row-label">Imports</span><span class="row-val">Direct top-level imports from Streak, Feed, and Notifications BCs. Job also writes directly to <span class="code">tasks</span> table (Routine Execution) and reads <span class="code">users</span> (Identity)</span></div>
+    <div class="issue-row"><span class="row-label">Why it matters</span><span class="row-val">Jobs should be thin orchestrators, not business logic owners. The job currently contains duplicated "user has missed tasks" notification formatting logic that partially overlaps with notification templates in <span class="code">services/notifications.py</span>.</span></div>
+    <div class="fix-box"><strong>Recommended fix:</strong> The actual task-missing logic should live in <span class="code">services/task.py:mark_tasks_missed_for_date()</span>, which the job calls. Side-effects (streak recalculation, feed post) flow from that service call through the existing chain, not through direct job-layer imports.</div>
+  </div>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="sev sev-med">MEDIUM</span>
+    <span class="issue-title">M-7: <code>architect/router.py</code> has an unused top-level import of <code>update_day_template_and_sync</code> from Routine Execution</span>
+  </div>
+  <div class="issue-body">
+    <div class="issue-row"><span class="row-label">Files</span><span class="row-val"><span class="code">services/architect/router.py:16</span> — <span class="code">from app.services.template import update_day_template_and_sync</span></span></div>
+    <div class="issue-row"><span class="row-label">Why it matters</span><span class="row-val">This import is never called in the router (the commit path uses <span class="code">commit_blueprint</span> RPC directly). It creates a dead coupling: Architect BC is formally dependent on Routine Execution's template service for no runtime benefit. It also creates a top-level module load that imports from another BC at startup.</span></div>
+    <div class="fix-box"><strong>Recommended fix:</strong> Remove the unused import. Confirm <span class="code">commit_blueprint</span> RPC is the canonical path. If <span class="code">update_day_template_and_sync</span> is ever needed in the commit path, import it inline at the call site.</div>
+  </div>
+</div>
+</div>
+
+
+<div class="issue-group">
+<div class="issue-group-title">✅ Low / Acceptable — Cross-Context Reads That Are by Design</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="sev sev-low">LOW</span>
+    <span class="issue-title">L-1: All BCs read <code>users.timezone</code> / <code>users.username</code> / <code>users.squad_id</code> directly</span>
+  </div>
+  <div class="issue-body">
+    <div class="issue-row"><span class="row-label">Pattern</span><span class="row-val">8 files query the <span class="code">users</span> table for <span class="code">username</span>, <span class="code">squad_id</span>, or <span class="code">timezone</span> directly rather than passing these through a context parameter.</span></div>
+    <div class="issue-row"><span class="row-label">Assessment</span><span class="row-val">Acceptable in a monolith. These are stable, frequently-needed reference fields. Creating an Identity service facade for 3-field lookups would add abstraction overhead with no practical benefit until the system is split into microservices.</span></div>
+  </div>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="sev sev-low">LOW</span>
+    <span class="issue-title">L-2: <code>post_feed_event()</code> is called from 7 different files across 5 BCs</span>
+  </div>
+  <div class="issue-body">
+    <div class="issue-row"><span class="row-label">Assessment</span><span class="row-val"><span class="code">post_feed_event()</span> functions as an internal event bus. All callers only pass data in — they never read from the feed. This is the correct direction. The Feed BC is a pure downstream consumer of all domain events. This pattern is DDD-compliant (Customer-Supplier where Feed is always downstream).</span></div>
+  </div>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="sev sev-low">LOW</span>
+    <span class="issue-title">L-3: Leaderboard service reads <code>streaks</code> and <code>tasks</code> for weekly scoring</span>
+  </div>
+  <div class="issue-body">
+    <div class="issue-row"><span class="row-label">Assessment</span><span class="row-val">The leaderboard scoring function needs real-time task counts and streak data. Reading these tables directly is appropriate because: (1) the data is needed atomically for the same week window, (2) calling two separate service methods would require 2 round-trips vs. 1 parallel query, and (3) the reads are narrow projections (status, date, current_streak only).</span></div>
+  </div>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="sev sev-low">LOW</span>
+    <span class="issue-title">L-4: Squad Membership reads <code>checkins.marked_done</code> for today to populate member cards</span>
+  </div>
+  <div class="issue-body">
+    <div class="issue-row"><span class="row-label">Files</span><span class="row-val"><span class="code">services/squads.py:40</span> — <span class="code">_build_squad_response</span></span></div>
+    <div class="issue-row"><span class="row-label">Assessment</span><span class="row-val">The squad member card needs to show "has this member completed their day today?" — a single boolean read. This is a narrow, stable projection. No mutation. Acceptable cross-context read.</span></div>
+  </div>
+</div>
+
+<div class="issue">
+  <div class="issue-header">
+    <span class="sev sev-low">LOW</span>
+    <span class="issue-title">L-5: Analytics BC reads from 5 tables owned by 3 other BCs</span>
+  </div>
+  <div class="issue-body">
+    <div class="issue-row"><span class="row-label">Tables read</span><span class="row-val"><span class="code">tasks</span>, <span class="code">checkins</span>, <span class="code">streaks</span>, <span class="code">rank_points</span>, <span class="code">leaderboard_entries</span></span></div>
+    <div class="issue-row"><span class="row-label">Assessment</span><span class="row-val">Analytics is explicitly a reporting context with no writes. Multi-table reads across BC boundaries are its entire purpose. This is the Conformist pattern — Analytics conforms to the schemas of all data-producing contexts. Acceptable by design; the 365-day temporal filter prevents full-table scans.</span></div>
+  </div>
+</div>
+
+</div>
+
+
+<div class="section-title">4 · Private Symbol Leakage</div>
+<p style="font-size:12px;color:#57606a;margin-bottom:10px">Underscore-prefixed symbols imported from outside their defining module — implementation detail leakage.</p>
+<table class="private-table">
+  <thead><tr><th>Symbol</th><th>Defined In</th><th>Imported By</th><th>Risk</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><span class="code">_get_user_tz()</span></td>
+      <td><span class="code">services/task.py:48</span></td>
+      <td><span class="code">services/template.py:8</span></td>
+      <td><span class="sev sev-med">Medium — rename breaks template.py silently</span></td>
+    </tr>
+    <tr>
+      <td><span class="code">_today_wat()</span>, <span class="code">_week_monday()</span></td>
+      <td><span class="code">services/leaderboard.py</span></td>
+      <td><span class="code">services/feed.py:106</span></td>
+      <td><span class="sev sev-med">Medium — private helpers imported cross-BC; duplicates date logic in core/timezone.py</span></td>
+    </tr>
+    <tr>
+      <td><span class="code">DAY_DONE_POINTS</span></td>
+      <td><span class="code">services/leaderboard.py</span></td>
+      <td><span class="code">routers/checkins.py:216</span></td>
+      <td><span class="sev sev-low">Low — constant, not logic; but exposes Competition BC's scoring constants to Routine Execution</span></td>
+    </tr>
+  </tbody>
+</table>
+
+
+<div class="section-title">5 · Remediation Priority Matrix</div>
+<table class="own-table">
+  <thead><tr><th>#</th><th>Issue</th><th>Effort</th><th>Impact</th><th>Priority</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>H-3</td>
+      <td>Squad BC writes to <span class="code">rank_points</span> — confirm RPC already does this, remove Python-side write</td>
+      <td>Low (delete code)</td>
+      <td>High (eliminates orphan owner)</td>
+      <td><span class="sev sev-high">Do now</span></td>
+    </tr>
+    <tr>
+      <td>M-7</td>
+      <td>Remove unused import of <span class="code">update_day_template_and_sync</span> in architect router</td>
+      <td>Trivial</td>
+      <td>Low–Medium (removes dead coupling)</td>
+      <td><span class="sev sev-high">Do now</span></td>
+    </tr>
+    <tr>
+      <td>M-2</td>
+      <td>Move <span class="code">_get_user_tz</span> to <span class="code">core/timezone.py</span> as public utility</td>
+      <td>Low</td>
+      <td>Medium (removes private symbol cross-import)</td>
+      <td><span class="sev sev-high">Do now</span></td>
+    </tr>
+    <tr>
+      <td>M-3</td>
+      <td>Consolidate <span class="code">_clean_title</span> / <span class="code">_normalize_todos</span> into <span class="code">core/title_normalizer.py</span></td>
+      <td>Low</td>
+      <td>Medium (eliminates 3× duplication)</td>
+      <td><span class="sev sev-high">Do now</span></td>
+    </tr>
+    <tr>
+      <td>H-4</td>
+      <td>Break Feed ↔ Competition bilateral dependency — replace leaderboard call in feed_summary with direct table read</td>
+      <td>Medium</td>
+      <td>High (eliminates circular import risk)</td>
+      <td><span class="sev sev-med">Sprint 1</span></td>
+    </tr>
+    <tr>
+      <td>H-1</td>
+      <td>Checkins router: route task mutations through <span class="code">services/task.py</span> instead of direct table access</td>
+      <td>Medium</td>
+      <td>High (single owner for task mutations)</td>
+      <td><span class="sev sev-med">Sprint 1</span></td>
+    </tr>
+    <tr>
+      <td>M-1</td>
+      <td>Extract <span class="code">on_completion()</span> coordinator to eliminate 3× side-effect fan-out duplication</td>
+      <td>Medium</td>
+      <td>High (single place for post-completion logic)</td>
+      <td><span class="sev sev-med">Sprint 1</span></td>
+    </tr>
+    <tr>
+      <td>H-5</td>
+      <td>Introduce <span class="code">leave_squad_atomic</span> RPC to remove direct <span class="code">users.squad_id</span> write from Squad BC</td>
+      <td>Medium (RPC migration)</td>
+      <td>Medium (aligns with existing atomic pattern)</td>
+      <td><span class="sev sev-med">Sprint 2</span></td>
+    </tr>
+    <tr>
+      <td>H-2</td>
+      <td>Architect commit path: route standalone task INSERT and window UPDATE through Routine Execution service layer</td>
+      <td>Medium</td>
+      <td>High (prevents future invariant bypass)</td>
+      <td><span class="sev sev-med">Sprint 2</span></td>
+    </tr>
+    <tr>
+      <td>M-4, M-5</td>
+      <td>Friends router + Leaderboard ranks: delegate to owning service methods instead of direct table queries</td>
+      <td>High (refactor)</td>
+      <td>Medium (reduces schema coupling)</td>
+      <td>Sprint 3</td>
+    </tr>
+  </tbody>
+</table>
+
+<footer>Made with IBM Bob</footer>
+</div>
+</body>
+</html>

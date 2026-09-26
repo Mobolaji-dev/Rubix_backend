@@ -1,0 +1,954 @@
+
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>routine-backend — DDD Bounded Context Map</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    background: #f7f8fa;
+    color: #1f2328;
+    padding: 32px 16px 48px;
+  }
+  .page { max-width: 920px; margin: 0 auto; }
+
+  h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .subtitle { color: #57606a; font-size: 13px; margin-bottom: 28px; }
+
+  /* ── Context Card ─────────────────────────────────────────────────── */
+  .ctx {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    margin-bottom: 28px;
+    overflow: hidden;
+  }
+  .ctx-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 16px 20px 14px;
+    border-bottom: 2px solid;
+  }
+  .ctx-icon { font-size: 26px; line-height: 1; padding-top: 2px; }
+  .ctx-title-block { flex: 1; }
+  .ctx-name { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+  .ctx-tagline { font-size: 12px; color: #57606a; margin-top: 2px; }
+  .ctx-badge {
+    font-size: 10px; font-weight: 700;
+    padding: 3px 9px; border-radius: 10px;
+    letter-spacing: 0.04em; text-transform: uppercase;
+    white-space: nowrap; margin-top: 4px;
+  }
+
+  /* colour themes */
+  .c1 .ctx-header { border-color: #3b82f6; background: #eff6ff; }
+  .c1 .ctx-name   { color: #1d4ed8; }
+  .c1 .ctx-badge  { background: #dbeafe; color: #1d4ed8; }
+
+  .c2 .ctx-header { border-color: #10b981; background: #ecfdf5; }
+  .c2 .ctx-name   { color: #065f46; }
+  .c2 .ctx-badge  { background: #d1fae5; color: #065f46; }
+
+  .c3 .ctx-header { border-color: #f59e0b; background: #fffbeb; }
+  .c3 .ctx-name   { color: #92400e; }
+  .c3 .ctx-badge  { background: #fef3c7; color: #92400e; }
+
+  .c4 .ctx-header { border-color: #8b5cf6; background: #f5f3ff; }
+  .c4 .ctx-name   { color: #5b21b6; }
+  .c4 .ctx-badge  { background: #ede9fe; color: #5b21b6; }
+
+  .c5 .ctx-header { border-color: #ef4444; background: #fef2f2; }
+  .c5 .ctx-name   { color: #991b1b; }
+  .c5 .ctx-badge  { background: #fee2e2; color: #991b1b; }
+
+  .c6 .ctx-header { border-color: #06b6d4; background: #ecfeff; }
+  .c6 .ctx-name   { color: #164e63; }
+  .c6 .ctx-badge  { background: #cffafe; color: #164e63; }
+
+  .c7 .ctx-header { border-color: #f97316; background: #fff7ed; }
+  .c7 .ctx-name   { color: #9a3412; }
+  .c7 .ctx-badge  { background: #fed7aa; color: #9a3412; }
+
+  .c8 .ctx-header { border-color: #6b7280; background: #f9fafb; }
+  .c8 .ctx-name   { color: #374151; }
+  .c8 .ctx-badge  { background: #e5e7eb; color: #374151; }
+
+  /* ── Body grid ───────────────────────────────────────────────────── */
+  .ctx-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+  }
+  .ctx-col {
+    padding: 14px 20px;
+    border-right: 1px solid #f0f0f2;
+  }
+  .ctx-col:last-child { border-right: none; }
+  .ctx-col-full {
+    padding: 14px 20px;
+    grid-column: 1 / -1;
+    border-top: 1px solid #f0f0f2;
+  }
+  .col-title {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: #57606a; margin-bottom: 8px;
+  }
+
+  /* ── File list ───────────────────────────────────────────────────── */
+  .file-list { list-style: none; }
+  .file-list li {
+    font-size: 12px;
+    font-family: "SF Mono", "Fira Mono", "Cascadia Code", monospace;
+    color: #1f2328;
+    padding: 2px 0;
+    line-height: 1.5;
+  }
+  .file-list li .path { color: #57606a; }
+  .file-cat {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; color: #9ca3af; margin: 8px 0 3px;
+  }
+  .file-cat:first-child { margin-top: 0; }
+
+  /* ── Aggregate / entity chips ────────────────────────────────────── */
+  .chip-row { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip {
+    font-size: 11px; padding: 2px 8px; border-radius: 12px;
+    font-weight: 600; border: 1px solid;
+  }
+  .chip-agg  { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+  .chip-vo   { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+  .chip-svc  { background: #dcfce7; color: #166534; border-color: #86efac; }
+  .chip-repo { background: #f3f0ff; color: #5521b5; border-color: #c4b5fd; }
+
+  /* ── Dependency row ──────────────────────────────────────────────── */
+  .dep-row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+  .dep-label { font-size: 11px; color: #57606a; }
+  .dep-chip {
+    font-size: 11px; padding: 2px 8px; border-radius: 12px;
+    background: #f7f8fa; border: 1px solid #e5e7eb; color: #1f2328; font-weight: 500;
+  }
+  .dep-chip.upstream   { background: #fffbeb; border-color: #fcd34d; color: #78350f; }
+  .dep-chip.downstream { background: #ecfdf5; border-color: #86efac; color: #065f46; }
+  .dep-chip.infra      { background: #f5f3ff; border-color: #c4b5fd; color: #5521b5; }
+
+  /* ── Ubiquitous language ─────────────────────────────────────────── */
+  .ub-list { font-size: 12px; color: #374151; }
+  .ub-list li { padding: 2px 0; }
+  .ub-list strong { color: #1f2328; }
+
+  /* ── Responsibility box ──────────────────────────────────────────── */
+  .resp-box {
+    font-size: 13px; line-height: 1.6; color: #374151;
+    background: #f7f8fa; border-radius: 6px; padding: 10px 14px;
+    border-left: 3px solid #e5e7eb;
+  }
+
+  /* ── Decision rationale ──────────────────────────────────────────── */
+  .rationale {
+    font-size: 11.5px; color: #57606a; font-style: italic;
+    padding: 8px 12px; background: #f7f8fa; border-radius: 6px;
+    margin-top: 4px;
+  }
+
+  /* ── Context map diagram ─────────────────────────────────────────── */
+  .map-section { margin-bottom: 28px; }
+  .map-title { font-size: 14px; font-weight: 700; margin-bottom: 12px; }
+  .map-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .map-table th {
+    background: #f7f8fa; padding: 8px 14px; text-align: left;
+    font-weight: 700; border-bottom: 1px solid #e5e7eb; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .map-table td { padding: 7px 14px; border-bottom: 1px solid #f0f0f2; vertical-align: top; }
+  .map-table tr:last-child td { border-bottom: none; }
+  .rel-badge {
+    display: inline-block; padding: 1px 6px; border-radius: 4px;
+    font-size: 10px; font-weight: 700; white-space: nowrap; margin-right: 2px;
+  }
+  .rel-p  { background: #dbeafe; color: #1e40af; }   /* Partnership */
+  .rel-cu { background: #d1fae5; color: #065f46; }   /* Customer-Supplier */
+  .rel-sk { background: #fef3c7; color: #92400e; }   /* Shared Kernel */
+  .rel-ac { background: #ede9fe; color: #5521b5; }   /* Anti-corruption Layer */
+  .rel-cf { background: #fee2e2; color: #991b1b; }   /* Conformist */
+
+  hr { border: none; border-top: 1px solid #e5e7eb; margin: 28px 0; }
+  footer {
+    text-align: center; font-size: 12px; color: #57606a;
+    border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 32px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>routine-backend — DDD Bounded Context Map</h1>
+  <p class="subtitle">8 bounded context candidates mapped from source modules following Domain-Driven Design principles.</p>
+
+  
+  <div class="ctx c1">
+    <div class="ctx-header">
+      <div class="ctx-icon">🔐</div>
+      <div class="ctx-title-block">
+        <div class="ctx-name">Identity &amp; Access</div>
+        <div class="ctx-tagline">Who the user is, how they authenticate, and whether they are allowed in</div>
+      </div>
+      <div class="ctx-badge">Core Domain</div>
+    </div>
+    <div class="ctx-body">
+      <div class="ctx-col">
+        <div class="col-title">Owned Modules</div>
+        <div class="file-cat">Routers</div>
+        <ul class="file-list">
+          <li><span class="path">routers/</span>auth.py</li>
+        </ul>
+        <div class="file-cat">Core / Infrastructure</div>
+        <ul class="file-list">
+          <li><span class="path">core/</span>auth.py</li>
+          <li><span class="path">core/</span>config.py</li>
+          <li><span class="path">core/</span>supabase.py</li>
+          <li><span class="path">core/</span>timezone.py</li>
+          <li><span class="path">core/</span>limiter.py</li>
+          <li><span class="path">core/</span>logging.py</li>
+        </ul>
+        <div class="file-cat">Services</div>
+        <ul class="file-list">
+          <li><span class="path">services/</span>email.py <span class="path">(auth emails only)</span></li>
+        </ul>
+        <div class="file-cat">Schemas</div>
+        <ul class="file-list">
+          <li><span class="path">schemas/schemas.py</span> <span class="path">(RegisterRequest, LoginRequest, TokenResponse, UserResponse)</span></li>
+        </ul>
+        <div class="file-cat">Database Tables</div>
+        <ul class="file-list">
+          <li>auth.users <span class="path">(Supabase managed)</span></li>
+          <li>users <span class="path">(public profile row)</span></li>
+          <li>password_reset_tokens</li>
+        </ul>
+        <div class="file-cat">Migration</div>
+        <ul class="file-list">
+          <li>migrations/03_handle_new_auth_user.sql</li>
+        </ul>
+      </div>
+      <div class="ctx-col">
+        <div class="col-title">Primary Responsibility</div>
+        <div class="resp-box">
+          Owns the full lifecycle of a <strong>User identity</strong>: registration, login (delegated to Supabase GoTrue), token validation (ES256 JWT / JWKS local verification), password reset flow, profile updates (username, email, phone, timezone), and the <strong>CurrentUser / CurrentUserWithEmail</strong> FastAPI dependency that every other context consumes as its primary authentication gate.
+        </div>
+        <br />
+        <div class="col-title">Aggregates &amp; Value Objects</div>
+        <div class="chip-row">
+          <span class="chip chip-agg">User (aggregate root)</span>
+          <span class="chip chip-vo">JWT Token</span>
+          <span class="chip chip-vo">PasswordResetToken</span>
+          <span class="chip chip-vo">Timezone</span>
+        </div>
+        <br />
+        <div class="col-title">Ubiquitous Language</div>
+        <ul class="ub-list">
+          <li><strong>User</strong> — a registered identity with a public username</li>
+          <li><strong>Onboarded</strong> — user has set username + phone (no user_ prefix)</li>
+          <li><strong>CurrentUserWithEmail</strong> — gated access requiring a verified email</li>
+          <li><strong>Reset Token</strong> — single-use SHA-256 hashed token</li>
+        </ul>
+        <br />
+        <div class="col-title">Upstream / Downstream Dependencies</div>
+        <div class="dep-row">
+          <span class="dep-label">Provides to all BCs:</span>
+          <span class="dep-chip downstream">CurrentUser identity</span>
+          <span class="dep-chip downstream">user_id string</span>
+        </div>
+        <div class="dep-row" style="margin-top:5px">
+          <span class="dep-label">External:</span>
+          <span class="dep-chip infra">Supabase Auth (GoTrue)</span>
+          <span class="dep-chip infra">Resend (email)</span>
+        </div>
+        <br />
+        <div class="rationale">Rationale: auth and identity warrant their own BC because they cross-cut all other contexts — every FastAPI route is downstream. Supabase GoTrue is an external conformist system; the local public.users table is owned here and acts as the canonical identity record inside the monolith.</div>
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="ctx c2">
+    <div class="ctx-header">
+      <div class="ctx-icon">✅</div>
+      <div class="ctx-title-block">
+        <div class="ctx-name">Routine Execution</div>
+        <div class="ctx-tagline">Planning, executing, and completing daily tasks against a repeating blueprint</div>
+      </div>
+      <div class="ctx-badge">Core Domain</div>
+    </div>
+    <div class="ctx-body">
+      <div class="ctx-col">
+        <div class="col-title">Owned Modules</div>
+        <div class="file-cat">Routers</div>
+        <ul class="file-list">
+          <li><span class="path">routers/</span>tasks.py</li>
+          <li><span class="path">routers/</span>checkins.py</li>
+          <li><span class="path">routers/</span>templates.py</li>
+          <li><span class="path">routers/</span>dashboard.py</li>
+        </ul>
+        <div class="file-cat">Services</div>
+        <ul class="file-list">
+          <li><span class="path">services/</span>task.py</li>
+          <li><span class="path">services/</span>checkin.py</li>
+          <li><span class="path">services/</span>template.py</li>
+        </ul>
+        <div class="file-cat">Schemas</div>
+        <ul class="file-list">
+          <li><span class="path">schemas/</span>task.py</li>
+          <li><span class="path">schemas/schemas.py</span> <span class="path">(CheckinResponse, TodosUpdate, WeekCheckinResponse, TemplateUpdate, TemplateResponse)</span></li>
+        </ul>
+        <div class="file-cat">Database Tables</div>
+        <ul class="file-list">
+          <li>tasks <span class="path">(aggregate, all ops)</span></li>
+          <li>checkins <span class="path">(daily sealing record)</span></li>
+          <li>day_templates <span class="path">(weekly blueprint)</span></li>
+        </ul>
+        <div class="file-cat">Background Jobs</div>
+        <ul class="file-list">
+          <li><span class="path">jobs/</span>auto_miss.py <span class="path">(run_auto_miss, run_end_of_day_warning)</span></li>
+        </ul>
+      </div>
+      <div class="ctx-col">
+        <div class="col-title">Primary Responsibility</div>
+        <div class="resp-box">
+          Owns the complete lifecycle of a <strong>Task</strong> — from blueprint seeding through timer start/extend/confirm/abandon to auto-miss. Manages the <strong>Checkin</strong> record (daily progress snapshot and the 80% sealing gate). Owns <strong>DayTemplate</strong> (the repeating blueprint that seeds each weekday's tasks). The dashboard summary endpoint is a read-model aggregated from this BC's tables.
+        </div>
+        <br />
+        <div class="col-title">Aggregates &amp; Value Objects</div>
+        <div class="chip-row">
+          <span class="chip chip-agg">Task (aggregate root)</span>
+          <span class="chip chip-agg">Checkin</span>
+          <span class="chip chip-agg">DayTemplate</span>
+          <span class="chip chip-vo">TaskStatus</span>
+          <span class="chip chip-vo">TimerWindow</span>
+          <span class="chip chip-vo">AllocationMinutes</span>
+        </div>
+        <br />
+        <div class="col-title">Ubiquitous Language</div>
+        <ul class="ub-list">
+          <li><strong>Blueprint</strong> — the repeating per-day task plan (stored in day_templates)</li>
+          <li><strong>Seeding</strong> — materialising today's tasks from the blueprint at first access</li>
+          <li><strong>Running</strong> — a task with an active countdown timer</li>
+          <li><strong>Mark Done</strong> — sealing a day after ≥80% completion</li>
+          <li><strong>Reignite</strong> — resetting a missed/completed task back to unallocated</li>
+          <li><strong>Auto-Miss</strong> — system-driven miss when a task's date has expired</li>
+        </ul>
+        <br />
+        <div class="col-title">Downstream Consumers</div>
+        <div class="dep-row">
+          <span class="dep-chip downstream">Streak Context</span>
+          <span class="dep-chip downstream">Competition Context</span>
+          <span class="dep-chip downstream">Squad Feed Context</span>
+          <span class="dep-chip downstream">AI Architect Context</span>
+          <span class="dep-chip downstream">Analytics Context</span>
+        </div>
+        <br />
+        <div class="rationale">Rationale: Tasks, Checkins, and DayTemplates form a tightly coupled cluster around a single domain concept — "did the user execute their routine today?" They share tables, seeding logic, and a common aggregate root (Task). Separating templates from tasks would require constant cross-BC queries just to serve a checkin response.</div>
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="ctx c3">
+    <div class="ctx-header">
+      <div class="ctx-icon">🔥</div>
+      <div class="ctx-title-block">
+        <div class="ctx-name">Streak &amp; Consistency</div>
+        <div class="ctx-tagline">Tracking the user's consecutive-day execution record and broadcasting milestones</div>
+      </div>
+      <div class="ctx-badge">Supporting Domain</div>
+    </div>
+    <div class="ctx-body">
+      <div class="ctx-col">
+        <div class="col-title">Owned Modules</div>
+        <div class="file-cat">Routers</div>
+        <ul class="file-list">
+          <li><span class="path">routers/</span>streak.py</li>
+        </ul>
+        <div class="file-cat">Services</div>
+        <ul class="file-list">
+          <li><span class="path">services/</span>streak.py</li>
+        </ul>
+        <div class="file-cat">Schemas</div>
+        <ul class="file-list">
+          <li><span class="path">schemas/schemas.py</span> <span class="path">(StreakResponse)</span></li>
+        </ul>
+        <div class="file-cat">Database Tables</div>
+        <ul class="file-list">
+          <li>streaks <span class="path">(current, longest, last_done_date)</span></li>
+        </ul>
+        <div class="file-cat">External PL/pgSQL RPC</div>
+        <ul class="file-list">
+          <li>recalculate_streak_db <span class="path">(atomically reads checkins + tasks, writes streaks)</span></li>
+        </ul>
+      </div>
+      <div class="ctx-col">
+        <div class="col-title">Primary Responsibility</div>
+        <div class="resp-box">
+          Owns the <strong>Streak</strong> aggregate: computing and persisting current and longest consecutive-day counts. Detects <strong>streak breaks</strong> and <strong>milestones</strong> (every 10 days) and emits domain events as side-effects (push notifications + squad feed posts). The RPC strategy consolidates all reads and writes into a single PL/pgSQL transaction to prevent concurrent race conditions.
+        </div>
+        <br />
+        <div class="col-title">Aggregates &amp; Value Objects</div>
+        <div class="chip-row">
+          <span class="chip chip-agg">Streak (aggregate root)</span>
+          <span class="chip chip-vo">ConsecutiveDays</span>
+          <span class="chip chip-vo">LastDoneDate</span>
+        </div>
+        <br />
+        <div class="col-title">Ubiquitous Language</div>
+        <ul class="ub-list">
+          <li><strong>Streak</strong> — the count of consecutive days with at least one completion</li>
+          <li><strong>Streak Break</strong> — current_streak drops to 0</li>
+          <li><strong>Milestone</strong> — streak reaches a multiple of 10</li>
+          <li><strong>Last Done Date</strong> — the most recent date the user completed something</li>
+        </ul>
+        <br />
+        <div class="col-title">Integration</div>
+        <div class="dep-row">
+          <span class="dep-label">Consumes events from:</span>
+          <span class="dep-chip upstream">Routine Execution</span>
+        </div>
+        <div class="dep-row" style="margin-top:5px">
+          <span class="dep-label">Emits events to:</span>
+          <span class="dep-chip downstream">Squad Feed Context</span>
+          <span class="dep-chip downstream">Push Notification Infra</span>
+        </div>
+        <br />
+        <div class="rationale">Rationale: Streak is conceptually distinct from task execution — it is a longitudinal measurement, not an action. It is also consumed independently by the Friends, Squad, and Leaderboard contexts. It has its own table, its own RPC, and its own event types. A separate BC boundary prevents the streak calculation from becoming entangled with task-state mutation logic.</div>
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="ctx c4">
+    <div class="ctx-header">
+      <div class="ctx-icon">🏆</div>
+      <div class="ctx-title-block">
+        <div class="ctx-name">Competition &amp; Ranking</div>
+        <div class="ctx-tagline">Weekly squad leaderboards, rank tiers, promotions, demotions, and all-time points</div>
+      </div>
+      <div class="ctx-badge">Core Domain</div>
+    </div>
+    <div class="ctx-body">
+      <div class="ctx-col">
+        <div class="col-title">Owned Modules</div>
+        <div class="file-cat">Routers</div>
+        <ul class="file-list">
+          <li><span class="path">routers/</span>leaderboard.py</li>
+        </ul>
+        <div class="file-cat">Services</div>
+        <ul class="file-list">
+          <li><span class="path">services/</span>leaderboard.py</li>
+          <li><span class="path">services/</span>rank_system.py</li>
+        </ul>
+        <div class="file-cat">Schemas</div>
+        <ul class="file-list">
+          <li><span class="path">schemas/</span>leaderboard.py</li>
+        </ul>
+        <div class="file-cat">Background Jobs</div>
+        <ul class="file-list">
+          <li><span class="path">jobs/</span>weekly_reset.py</li>
+        </ul>
+        <div class="file-cat">Database Tables</div>
+        <ul class="file-list">
+          <li>rank_points <span class="path">(total_points, tier, division, shield_count)</span></li>
+          <li>leaderboard_entries <span class="path">(weekly historical snapshots)</span></li>
+        </ul>
+        <div class="file-cat">External PL/pgSQL RPCs</div>
+        <ul class="file-list">
+          <li>award_points_atomic</li>
+          <li>acquire_job_lock / release_job_lock</li>
+        </ul>
+      </div>
+      <div class="ctx-col">
+        <div class="col-title">Primary Responsibility</div>
+        <div class="resp-box">
+          Owns the <strong>RankPoints</strong> and <strong>LeaderboardEntry</strong> aggregates. Manages the weekly scoring algorithm (completion % + streak as tiebreaker), atomic point awarding, tier transitions (Recruit → Consistent → Disciplined → Committed → Elite → CMPDx), division promotions/demotions on weekly close, and the distributed <strong>WeeklyReset</strong> job (10 squads in parallel behind a semaphore with job locking).
+        </div>
+        <br />
+        <div class="col-title">Aggregates &amp; Value Objects</div>
+        <div class="chip-row">
+          <span class="chip chip-agg">RankPoints (aggregate root)</span>
+          <span class="chip chip-agg">LeaderboardEntry</span>
+          <span class="chip chip-vo">Tier</span>
+          <span class="chip chip-vo">Division</span>
+          <span class="chip chip-vo">WeeklyScore</span>
+          <span class="chip chip-vo">RankPosition</span>
+        </div>
+        <br />
+        <div class="col-title">Ubiquitous Language</div>
+        <ul class="ub-list">
+          <li><strong>Tier</strong> — named rank bracket (Recruit … CMPDx)</li>
+          <li><strong>Division</strong> — sub-rank within a tier (3 = bottom, 1 = top)</li>
+          <li><strong>Promotion</strong> — moving up a division or tier after a top-2 weekly finish</li>
+          <li><strong>Demotion</strong> — dropping a division/tier after finishing last in squad ≥ 3</li>
+          <li><strong>Week Close</strong> — the Monday job that seals weekly results and triggers rank changes</li>
+          <li><strong>Rank Surpassed</strong> — real-time overtake of another squad member mid-week</li>
+        </ul>
+        <br />
+        <div class="col-title">Integration</div>
+        <div class="dep-row">
+          <span class="dep-label">Triggered by:</span>
+          <span class="dep-chip upstream">Routine Execution (task confirm)</span>
+        </div>
+        <div class="dep-row" style="margin-top:5px">
+          <span class="dep-label">Emits to:</span>
+          <span class="dep-chip downstream">Squad Feed Context</span>
+          <span class="dep-chip downstream">Push Notification Infra</span>
+        </div>
+        <br />
+        <div class="rationale">Rationale: The leaderboard system has its own complex scoring formula, tier ladder, job scheduling, and historical snapshot table. It is not just a view over tasks — it applies game-design rules that evolve independently. rank_system.py and leaderboard.py together form a rich domain model that belongs in its own context.</div>
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="ctx c5">
+    <div class="ctx-header">
+      <div class="ctx-icon">🪖</div>
+      <div class="ctx-title-block">
+        <div class="ctx-name">Squad Membership</div>
+        <div class="ctx-tagline">Creating, joining, leaving, and managing the accountability groups users compete inside</div>
+      </div>
+      <div class="ctx-badge">Supporting Domain</div>
+    </div>
+    <div class="ctx-body">
+      <div class="ctx-col">
+        <div class="col-title">Owned Modules</div>
+        <div class="file-cat">Routers</div>
+        <ul class="file-list">
+          <li><span class="path">routers/</span>squads.py</li>
+          <li><span class="path">routers/</span>friends.py</li>
+          <li><span class="path">routers/</span>contact.py</li>
+        </ul>
+        <div class="file-cat">Services</div>
+        <ul class="file-list">
+          <li><span class="path">services/</span>squads.py</li>
+          <li><span class="path">services/</span>email.py <span class="path">(send_squad_invite)</span></li>
+        </ul>
+        <div class="file-cat">Schemas</div>
+        <ul class="file-list">
+          <li><span class="path">schemas/</span>squads.py</li>
+          <li><span class="path">schemas/schemas.py</span> <span class="path">(FriendRequestResponse, FriendResponse, FriendWeekResponse, FriendStreakResponse, FriendGraphResponse)</span></li>
+        </ul>
+        <div class="file-cat">Database Tables</div>
+        <ul class="file-list">
+          <li>squads</li>
+          <li>friendships</li>
+          <li>friend_requests</li>
+        </ul>
+        <div class="file-cat">External PL/pgSQL RPCs</div>
+        <ul class="file-list">
+          <li>create_squad_atomic</li>
+          <li>join_squad_atomic</li>
+          <li>accept_friend_request_atomic</li>
+        </ul>
+      </div>
+      <div class="ctx-col">
+        <div class="col-title">Primary Responsibility</div>
+        <div class="resp-box">
+          Owns the <strong>Squad</strong> and <strong>Friendship</strong> aggregates. Manages squad creation (unique invite code generation), invite-code joining, contact-number search (phone normalisation for Nigerian numbers), friend request lifecycle, and email-based squad invites. Exposes friend-visibility read models (week view, streak, activity graph) gated by friendship status.
+        </div>
+        <br />
+        <div class="col-title">Aggregates &amp; Value Objects</div>
+        <div class="chip-row">
+          <span class="chip chip-agg">Squad (aggregate root)</span>
+          <span class="chip chip-agg">Friendship</span>
+          <span class="chip chip-agg">FriendRequest</span>
+          <span class="chip chip-vo">InviteCode</span>
+          <span class="chip chip-vo">MemberCount</span>
+          <span class="chip chip-vo">NigerianPhoneNumber</span>
+        </div>
+        <br />
+        <div class="col-title">Ubiquitous Language</div>
+        <ul class="ub-list">
+          <li><strong>Squad</strong> — an accountability group of up to 6 users</li>
+          <li><strong>Invite Code</strong> — a 6-character uppercase alphanumeric join token</li>
+          <li><strong>Friend Visibility</strong> — ability to see another user's week/streak/graph</li>
+          <li><strong>Contact Search</strong> — matching phone numbers against registered users</li>
+        </ul>
+        <br />
+        <div class="col-title">Integration</div>
+        <div class="dep-row">
+          <span class="dep-label">Provides to:</span>
+          <span class="dep-chip downstream">Competition Context (squad_id anchor)</span>
+          <span class="dep-chip downstream">Squad Feed Context (squad_id anchor)</span>
+        </div>
+        <div class="dep-row" style="margin-top:5px">
+          <span class="dep-label">External:</span>
+          <span class="dep-chip infra">Resend (squad invite email)</span>
+        </div>
+        <br />
+        <div class="rationale">Rationale: Squad and Friend are social structures that exist independently of any particular week's performance. They define who can see what and who competes together. Friends are grouped here rather than having their own BC because friend-visibility (week view, streak peek) directly reads from the Squad Membership tables and is gated by friendship status — they share the same access-control invariant.</div>
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="ctx c6">
+    <div class="ctx-header">
+      <div class="ctx-icon">📢</div>
+      <div class="ctx-title-block">
+        <div class="ctx-name">Squad Activity Feed</div>
+        <div class="ctx-tagline">Recording and broadcasting everything that happens inside a squad as a real-time activity stream</div>
+      </div>
+      <div class="ctx-badge">Supporting Domain</div>
+    </div>
+    <div class="ctx-body">
+      <div class="ctx-col">
+        <div class="col-title">Owned Modules</div>
+        <div class="file-cat">Routers</div>
+        <ul class="file-list">
+          <li><span class="path">routers/</span>feed.py</li>
+        </ul>
+        <div class="file-cat">Services</div>
+        <ul class="file-list">
+          <li><span class="path">services/</span>feed.py</li>
+          <li><span class="path">services/</span>notifications.py</li>
+        </ul>
+        <div class="file-cat">Schemas</div>
+        <ul class="file-list">
+          <li><span class="path">schemas/</span>feed.py</li>
+        </ul>
+        <div class="file-cat">Database Tables</div>
+        <ul class="file-list">
+          <li>feed_entries <span class="path">(event log)</span></li>
+          <li>feed_views <span class="path">(seen-by tracking)</span></li>
+          <li>push_subscriptions <span class="path">(Web Push registrations)</span></li>
+        </ul>
+      </div>
+      <div class="ctx-col">
+        <div class="col-title">Primary Responsibility</div>
+        <div class="resp-box">
+          Owns the <strong>FeedEntry</strong> aggregate — the append-only squad event log. Provides the <code>post_feed_event()</code> domain service called by every other context to broadcast squad-visible events. Manages cursor-based pagination of feed entries and "seen-by" tracking. Owns the <strong>PushSubscription</strong> aggregate (VAPID Web Push device registrations) and dispatches Web Push notifications to squad members and individual users as fire-and-forget side-effects.
+        </div>
+        <br />
+        <div class="col-title">Aggregates &amp; Value Objects</div>
+        <div class="chip-row">
+          <span class="chip chip-agg">FeedEntry (aggregate root)</span>
+          <span class="chip chip-agg">PushSubscription</span>
+          <span class="chip chip-vo">FeedEventType</span>
+          <span class="chip chip-vo">FeedCursor</span>
+          <span class="chip chip-svc">post_feed_event() (domain service)</span>
+        </div>
+        <br />
+        <div class="col-title">Ubiquitous Language</div>
+        <ul class="ub-list">
+          <li><strong>Feed Event</strong> — a squad-scoped broadcast record of something that happened</li>
+          <li><strong>Event Types</strong> — task_completed · day_done · day_missed · joined_squad · streak_broken · streak_milestone · rank_changed · rank_surpassed · leaderboard_topped · rank_dropped · timer_abandoned</li>
+          <li><strong>Seen By</strong> — the list of squad members who have viewed an entry</li>
+          <li><strong>Push Subscription</strong> — a device-level Web Push endpoint registration</li>
+        </ul>
+        <br />
+        <div class="col-title">Integration — Inbound Events</div>
+        <div class="dep-row">
+          <span class="dep-chip upstream">Routine Execution</span>
+          <span class="dep-chip upstream">Streak Context</span>
+          <span class="dep-chip upstream">Competition Context</span>
+          <span class="dep-chip upstream">Squad Membership</span>
+        </div>
+        <br />
+        <div class="rationale">Rationale: The feed is a pure event-store and notification dispatcher. It holds no business rules of its own — its invariant is append-only. All other contexts publish into it but none own it. Combining push notifications here is justified because both feed and push share the same trigger (a domain event occurs) and the same audience (squad members or the acting user).</div>
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="ctx c7">
+    <div class="ctx-header">
+      <div class="ctx-icon">📊</div>
+      <div class="ctx-title-block">
+        <div class="ctx-name">Analytics &amp; Performance Insights</div>
+        <div class="ctx-tagline">Computing and caching derived metrics about a user's long-term execution patterns</div>
+      </div>
+      <div class="ctx-badge">Generic Subdomain</div>
+    </div>
+    <div class="ctx-body">
+      <div class="ctx-col">
+        <div class="col-title">Owned Modules</div>
+        <div class="file-cat">Routers</div>
+        <ul class="file-list">
+          <li><span class="path">routers/</span>profile.py</li>
+        </ul>
+        <div class="file-cat">Services</div>
+        <ul class="file-list">
+          <li><span class="path">services/</span>performance.py</li>
+        </ul>
+        <div class="file-cat">Schemas</div>
+        <ul class="file-list">
+          <li><span class="path">schemas/</span>performance.py</li>
+        </ul>
+        <div class="file-cat">Read Sources (no owned writes)</div>
+        <ul class="file-list">
+          <li>tasks <span class="path">(read-only, 365-day window)</span></li>
+          <li>checkins <span class="path">(read-only, 365-day window)</span></li>
+          <li>streaks <span class="path">(read-only)</span></li>
+          <li>rank_points <span class="path">(read-only)</span></li>
+          <li>leaderboard_entries <span class="path">(read-only)</span></li>
+        </ul>
+      </div>
+      <div class="ctx-col">
+        <div class="col-title">Primary Responsibility</div>
+        <div class="resp-box">
+          A pure <strong>read model / reporting context</strong>. Computes derived metrics from raw task and checkin data: all-time and 30-day completion rates, peak/dead days (weighted by volume), 4-week trends, average tasks per day, 14-day streak history booleans, and week-by-week history with leaderboard snapshots. Maintains an in-memory cache (30-second TTL for performance stats, 5-minute TTL for week history). Exposes a public (unauthenticated) profile endpoint. Never writes to any table.
+        </div>
+        <br />
+        <div class="col-title">Value Objects &amp; Services</div>
+        <div class="chip-row">
+          <span class="chip chip-vo">PerformanceSummary</span>
+          <span class="chip chip-vo">AISignals</span>
+          <span class="chip chip-vo">WeekSummary</span>
+          <span class="chip chip-vo">DaySummary</span>
+          <span class="chip chip-svc">get_user_performance_summary()</span>
+          <span class="chip chip-svc">get_ai_signals()</span>
+          <span class="chip chip-svc">calculate_week_history()</span>
+        </div>
+        <br />
+        <div class="col-title">Ubiquitous Language</div>
+        <ul class="ub-list">
+          <li><strong>AI Signals</strong> — structured performance data fed to the Architect agent</li>
+          <li><strong>Peak Day</strong> — day-of-week with highest weighted completion score</li>
+          <li><strong>Dead Day</strong> — day-of-week with lowest weighted completion score</li>
+          <li><strong>Days Survived</strong> — all-time unique dates with at least one completion</li>
+        </ul>
+        <br />
+        <div class="col-title">Consumers</div>
+        <div class="dep-row">
+          <span class="dep-chip downstream">AI Architect Context (AISignals)</span>
+          <span class="dep-chip downstream">Public profile endpoint</span>
+        </div>
+        <br />
+        <div class="rationale">Rationale: This context owns zero writes. It is a reporting / analytics projection over data owned by other BCs. Separating it prevents performance calculation logic from polluting the transactional contexts and allows caching strategies (in-memory, future Redis) to be managed independently without touching business rules.</div>
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="ctx c8">
+    <div class="ctx-header">
+      <div class="ctx-icon">🤖</div>
+      <div class="ctx-title-block">
+        <div class="ctx-name">AI Architect</div>
+        <div class="ctx-tagline">A conversational LLM agent that understands the user's patterns and proposes structured routine changes</div>
+      </div>
+      <div class="ctx-badge">Core Domain</div>
+    </div>
+    <div class="ctx-body">
+      <div class="ctx-col">
+        <div class="col-title">Owned Modules</div>
+        <div class="file-cat">Routers</div>
+        <ul class="file-list">
+          <li><span class="path">routers/</span>architect.py</li>
+        </ul>
+        <div class="file-cat">Services (entire architect/ package)</div>
+        <ul class="file-list">
+          <li><span class="path">services/architect/</span>router.py</li>
+          <li><span class="path">services/architect/</span>graph.py</li>
+          <li><span class="path">services/architect/</span>nodes.py</li>
+          <li><span class="path">services/architect/</span>state.py</li>
+          <li><span class="path">services/architect/</span>tools.py</li>
+          <li><span class="path">services/architect/</span>llm.py</li>
+          <li><span class="path">services/architect/</span>prompts/systemprompt.py</li>
+          <li><span class="path">services/architect/</span>validate_regex.py</li>
+        </ul>
+        <div class="file-cat">Schemas</div>
+        <ul class="file-list">
+          <li><span class="path">schemas/</span>architect.py</li>
+        </ul>
+        <div class="file-cat">Database Tables (owned)</div>
+        <ul class="file-list">
+          <li>architect_sessions <span class="path">(conversation history + pending_proposal)</span></li>
+          <li>user_context <span class="path">(durable user context: day_shape, habits, etc.)</span></li>
+        </ul>
+        <div class="file-cat">External Infrastructure</div>
+        <ul class="file-list">
+          <li>OpenRouter <span class="path">(LLM API gateway)</span></li>
+          <li>LangGraph <span class="path">(agent loop: agent → tools → agent)</span></li>
+        </ul>
+      </div>
+      <div class="ctx-col">
+        <div class="col-title">Primary Responsibility</div>
+        <div class="resp-box">
+          Owns the <strong>ArchitectSession</strong> and <strong>UserContext</strong> aggregates. Runs a ReAct-style LangGraph agent loop that reasons over the user's performance signals and blueprint, then stages structured <strong>proposals</strong> (blueprint change, standalone task, or time window) for explicit user confirmation before writing anything to the Routine Execution context. Acts as an <strong>Anti-Corruption Layer</strong> translating between the LLM's free-text reasoning and the strict domain schemas of the Routine Execution context.
+        </div>
+        <br />
+        <div class="col-title">Aggregates &amp; Value Objects</div>
+        <div class="chip-row">
+          <span class="chip chip-agg">ArchitectSession (aggregate root)</span>
+          <span class="chip chip-agg">UserContext</span>
+          <span class="chip chip-vo">Proposal (blueprint | standalone_task | time_window)</span>
+          <span class="chip chip-vo">AgentState</span>
+          <span class="chip chip-svc">architect_graph (LangGraph)</span>
+        </div>
+        <br />
+        <div class="col-title">Ubiquitous Language</div>
+        <ul class="ub-list">
+          <li><strong>Session</strong> — a persistent conversation thread between user and the agent</li>
+          <li><strong>Proposal</strong> — a staged, uncommitted plan change awaiting user confirmation</li>
+          <li><strong>Commit / Reject</strong> — user explicitly accepts or discards a staged proposal</li>
+          <li><strong>User Context</strong> — durable profile of how the user operates (day_shape, derail_pattern, etc.)</li>
+          <li><strong>AI Signals</strong> — performance metrics consumed from the Analytics BC</li>
+        </ul>
+        <br />
+        <div class="col-title">Integration</div>
+        <div class="dep-row">
+          <span class="dep-label">Reads from:</span>
+          <span class="dep-chip upstream">Analytics BC (AISignals, week history)</span>
+          <span class="dep-chip upstream">Routine Execution (tasks, day_templates)</span>
+        </div>
+        <div class="dep-row" style="margin-top:5px">
+          <span class="dep-label">Writes to (on commit only):</span>
+          <span class="dep-chip downstream">Routine Execution (via commit_blueprint RPC or tasks INSERT)</span>
+        </div>
+        <div class="dep-row" style="margin-top:5px">
+          <span class="dep-label">External:</span>
+          <span class="dep-chip infra">OpenRouter (LLM)</span>
+          <span class="dep-chip infra">LangGraph (agent loop)</span>
+        </div>
+        <br />
+        <div class="rationale">Rationale: The AI agent is architecturally distinct because it introduces a non-deterministic, conversational loop not found anywhere else. It owns its own session state and user-context store, has a completely different execution model (LangGraph), and deliberately decouples LLM reasoning from transactional writes via the proposal/commit pattern. It is a Core Domain differentiator — no generic off-the-shelf solution produces a performance-aware routine coach.</div>
+      </div>
+    </div>
+  </div>
+
+  <hr />
+
+  
+  <div class="map-section">
+    <div class="map-title">Context Relationship Map (Inter-BC Dependencies)</div>
+    <table class="map-table">
+      <thead>
+        <tr>
+          <th>Upstream (Producer)</th>
+          <th>Downstream (Consumer)</th>
+          <th>Relationship Pattern</th>
+          <th>Integration Point</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Identity &amp; Access</strong></td>
+          <td>All 7 other BCs</td>
+          <td><span class="rel-badge rel-cu">Customer–Supplier</span></td>
+          <td>CurrentUser / CurrentUserWithEmail FastAPI dependency; user_id as foreign key</td>
+        </tr>
+        <tr>
+          <td><strong>Routine Execution</strong></td>
+          <td>Streak &amp; Consistency</td>
+          <td><span class="rel-badge rel-cu">Customer–Supplier</span></td>
+          <td>Task confirm / day done triggers recalculate_streak()</td>
+        </tr>
+        <tr>
+          <td><strong>Routine Execution</strong></td>
+          <td>Competition &amp; Ranking</td>
+          <td><span class="rel-badge rel-cu">Customer–Supplier</span></td>
+          <td>Task confirm / day done triggers award_points(); weekly close reads tasks table</td>
+        </tr>
+        <tr>
+          <td><strong>Routine Execution</strong></td>
+          <td>Squad Activity Feed</td>
+          <td><span class="rel-badge rel-cu">Customer–Supplier</span></td>
+          <td>post_feed_event() called on task_completed, day_done, day_missed, timer_abandoned</td>
+        </tr>
+        <tr>
+          <td><strong>Streak &amp; Consistency</strong></td>
+          <td>Squad Activity Feed</td>
+          <td><span class="rel-badge rel-cu">Customer–Supplier</span></td>
+          <td>post_feed_event() on streak_broken, streak_milestone + direct push via send_push_to_user()</td>
+        </tr>
+        <tr>
+          <td><strong>Competition &amp; Ranking</strong></td>
+          <td>Squad Activity Feed</td>
+          <td><span class="rel-badge rel-cu">Customer–Supplier</span></td>
+          <td>post_feed_event() on rank_changed, rank_surpassed, leaderboard_topped, rank_dropped</td>
+        </tr>
+        <tr>
+          <td><strong>Squad Membership</strong></td>
+          <td>Competition &amp; Ranking</td>
+          <td><span class="rel-badge rel-sk">Shared Kernel</span></td>
+          <td>squad_id FK; rank_points row is seeded by join_squad_atomic RPC; leaderboard is scoped by squad</td>
+        </tr>
+        <tr>
+          <td><strong>Squad Membership</strong></td>
+          <td>Squad Activity Feed</td>
+          <td><span class="rel-badge rel-cu">Customer–Supplier</span></td>
+          <td>post_feed_event(joined_squad) on create/join; feed queries users for squad_id context</td>
+        </tr>
+        <tr>
+          <td><strong>Routine Execution</strong></td>
+          <td>Analytics &amp; Performance</td>
+          <td><span class="rel-badge rel-cf">Conformist</span></td>
+          <td>Analytics reads tasks + checkins + streaks + leaderboard_entries as read-only projections</td>
+        </tr>
+        <tr>
+          <td><strong>Analytics &amp; Performance</strong></td>
+          <td>AI Architect</td>
+          <td><span class="rel-badge rel-cu">Customer–Supplier</span></td>
+          <td>get_ai_signals() and calculate_week_history() called by architect tools before any proposal</td>
+        </tr>
+        <tr>
+          <td><strong>AI Architect</strong></td>
+          <td>Routine Execution</td>
+          <td><span class="rel-badge rel-ac">Anti-Corruption Layer</span></td>
+          <td>commit_blueprint RPC / tasks INSERT only on explicit user commit; LLM output validated before write</td>
+        </tr>
+        <tr>
+          <td><strong>Squad Activity Feed</strong></td>
+          <td>Push Notification Infra</td>
+          <td><span class="rel-badge rel-p">Partnership</span></td>
+          <td>send_push_to_squad() / send_push_to_user() co-owned in services/notifications.py; fire-and-forget via asyncio.create_task()</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  
+  <div class="map-section">
+    <div class="map-title">Database Table Ownership by Bounded Context</div>
+    <table class="map-table">
+      <thead>
+        <tr><th>Table</th><th>Owning BC</th><th>Access by other BCs</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>auth.users</td><td>Identity &amp; Access (external — Supabase GoTrue)</td><td>Read via trigger only</td></tr>
+        <tr><td>users</td><td>Identity &amp; Access</td><td>Read-only (user_id, username, squad_id, timezone) by all BCs</td></tr>
+        <tr><td>password_reset_tokens</td><td>Identity &amp; Access</td><td>None</td></tr>
+        <tr><td>tasks</td><td>Routine Execution</td><td>Read-only: Competition, Analytics, AI Architect</td></tr>
+        <tr><td>checkins</td><td>Routine Execution</td><td>Read-only: Streak (via RPC), Analytics, Squad Membership (friend views)</td></tr>
+        <tr><td>day_templates</td><td>Routine Execution</td><td>Read: AI Architect (load_blueprint tool), write on commit only (via RPC)</td></tr>
+        <tr><td>streaks</td><td>Streak &amp; Consistency</td><td>Read-only: Squad Membership (friend streak), Competition, Analytics</td></tr>
+        <tr><td>rank_points</td><td>Competition &amp; Ranking</td><td>Read-only: Squad Membership (member enrichment), Analytics</td></tr>
+        <tr><td>leaderboard_entries</td><td>Competition &amp; Ranking</td><td>Read-only: Analytics, AI Architect (week history tool)</td></tr>
+        <tr><td>squads</td><td>Squad Membership</td><td>Read (squad_id): all BCs that are squad-scoped</td></tr>
+        <tr><td>friendships</td><td>Squad Membership</td><td>None</td></tr>
+        <tr><td>friend_requests</td><td>Squad Membership</td><td>None</td></tr>
+        <tr><td>feed_entries</td><td>Squad Activity Feed</td><td>Read: Analytics (feed summary — streak_broken events)</td></tr>
+        <tr><td>feed_views</td><td>Squad Activity Feed</td><td>None</td></tr>
+        <tr><td>push_subscriptions</td><td>Squad Activity Feed</td><td>None (internal to notification dispatcher)</td></tr>
+        <tr><td>architect_sessions</td><td>AI Architect</td><td>None</td></tr>
+        <tr><td>user_context</td><td>AI Architect</td><td>None</td></tr>
+        <tr><td>job_locks</td><td>Shared Infra (Competition + Routine jobs)</td><td>Used by weekly_reset + auto_miss jobs</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer>Made with IBM Bob</footer>
+</div>
+</body>
+</html>

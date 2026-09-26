@@ -1,0 +1,959 @@
+
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>routine-backend — Domain Event Storming</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    background: #f7f8fa;
+    color: #1f2328;
+    padding: 32px 16px;
+  }
+  .page { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .subtitle { color: #57606a; font-size: 13px; margin-bottom: 32px; }
+
+  /* Legend */
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 12px;
+    margin-bottom: 28px; padding: 14px 16px;
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .ev   { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+  .cmd  { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+  .qry  { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+  .job  { background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd; }
+  .ext  { background: #fce7f3; color: #9d174d; border: 1px solid #f9a8d4; }
+
+  /* Domain group */
+  .domain {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    margin-bottom: 24px;
+    overflow: hidden;
+  }
+  .domain-header {
+    padding: 12px 18px;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f7f8fa;
+  }
+  .domain-icon { font-size: 20px; }
+  .domain-title { font-size: 15px; font-weight: 700; }
+  .domain-desc { font-size: 12px; color: #57606a; margin-left: auto; }
+
+  /* Event block */
+  .event-list { padding: 0; }
+  .event {
+    border-bottom: 1px solid #f0f0f2;
+    padding: 14px 18px;
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 12px;
+    align-items: start;
+  }
+  .event:last-child { border-bottom: none; }
+  .event-name { font-weight: 600; font-size: 13px; }
+  .event-name .pill { margin-right: 6px; }
+  .details { font-size: 12px; color: #1f2328; }
+
+  .detail-row { display: flex; gap: 6px; margin-bottom: 4px; flex-wrap: wrap; align-items: baseline; }
+  .detail-row:last-child { margin-bottom: 0; }
+  .label { font-weight: 600; color: #57606a; min-width: 70px; }
+
+  .badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    margin-right: 3px;
+    margin-bottom: 2px;
+  }
+  .badge-table  { background: #e8f0fe; color: #1a56db; }
+  .badge-rpc    { background: #f3f0ff; color: #5521b5; }
+  .badge-method { background: #ecfdf5; color: #065f46; font-family: "SF Mono", "Fira Mono", monospace; }
+  .badge-side   { background: #fff7ed; color: #9a3412; }
+
+  .trigger-label { font-size: 11px; color: #57606a; font-style: italic; }
+
+  /* DB summary table */
+  .db-summary {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+  .db-summary table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .db-summary th {
+    background: #f7f8fa;
+    padding: 8px 14px;
+    text-align: left;
+    font-weight: 700;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .db-summary td { padding: 7px 14px; border-bottom: 1px solid #f0f0f2; vertical-align: top; }
+  .db-summary tr:last-child td { border-bottom: none; }
+  .ops { display: flex; flex-wrap: wrap; gap: 4px; }
+  .op { font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 4px; }
+  .op-r { background: #dcfce7; color: #166534; }
+  .op-w { background: #fee2e2; color: #991b1b; }
+  .op-d { background: #fef3c7; color: #92400e; }
+  .op-u { background: #dbeafe; color: #1e40af; }
+  .op-s { background: #ede9fe; color: #5b21b6; }
+
+  section-title { display: block; font-size: 13px; font-weight: 700; margin: 24px 0 10px; }
+
+  hr { border: none; border-top: 1px solid #e5e7eb; margin: 28px 0; }
+  footer { text-align: center; font-size: 12px; color: #57606a; border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 32px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>routine-backend — Domain Event Storming</h1>
+  <p class="subtitle">Extracted from routine_api across all routers, services, and background jobs. Grouped by primary business action.</p>
+
+  <div class="legend">
+    <div class="legend-item"><span class="pill ev">Event</span> Domain event (something that happened)</div>
+    <div class="legend-item"><span class="pill cmd">Command</span> Write / mutation API endpoint</div>
+    <div class="legend-item"><span class="pill qry">Query</span> Read API endpoint</div>
+    <div class="legend-item"><span class="pill job">Job</span> Background / scheduled job</div>
+    <div class="legend-item"><span class="pill ext">External</span> Outbound side-effect (email, push)</div>
+  </div>
+
+  
+  <div class="domain">
+    <div class="domain-header">
+      <span class="domain-icon">🔐</span>
+      <span class="domain-title">Authentication &amp; Identity</span>
+      <span class="domain-desc">router: auth.py</span>
+    </div>
+    <div class="event-list">
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>User Registered</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /auth/register</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">auth.users</span><span class="badge badge-rpc">→ trigger → public.users INSERT</span></div>
+          <div class="detail-row"><span class="label">Returns</span>access_token + refresh_token (JWT pair)</div>
+          <div class="detail-row"><span class="label">Trigger</span><span class="trigger-label">handle_new_auth_user DB trigger auto-inserts public.users row</span></div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>User Logged In</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /auth/login</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">auth.users</span> (Supabase GoTrue sign_in_with_password)</div>
+          <div class="detail-row"><span class="label">Returns</span>JWT access_token + refresh_token</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Token Refreshed</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /auth/refresh</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">auth.users</span> (Supabase GoTrue refresh_session)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Profile Updated</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">PUT /auth/profile</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">users</span> UPDATE (username, email, phone_number)</div>
+          <div class="detail-row"><span class="label">Side FX</span><span class="badge badge-side">Supabase auth metadata sync</span></div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Timezone Set</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">PUT /auth/timezone</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">users</span> UPDATE (timezone)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Password Reset Requested</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /auth/forgot-password</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">users</span> SELECT · <span class="badge badge-table">password_reset_tokens</span> UPDATE (invalidate old) + INSERT (new)</div>
+          <div class="detail-row"><span class="label">Side FX</span><span class="badge badge-side ext">Email: password reset link sent</span></div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Password Reset</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /auth/reset-password</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">password_reset_tokens</span> SELECT + UPDATE (consumed) · <span class="badge badge-table">users</span> UPDATE (hashed_password)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill qry">Query</span>Current User Fetched</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Endpoint</span><span class="badge badge-method">GET /auth/me</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">users</span> (via JWT auth middleware)</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  
+  <div class="domain">
+    <div class="domain-header">
+      <span class="domain-icon">✅</span>
+      <span class="domain-title">Task Lifecycle</span>
+      <span class="domain-desc">routers/tasks.py · services/task.py</span>
+    </div>
+    <div class="event-list">
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Task Created</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /tasks</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">tasks</span> INSERT</div>
+          <div class="detail-row"><span class="label">Initial state</span>status = unallocated</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Task Time Allocated</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">PATCH /tasks/{date}/{index}/allocate</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">tasks</span> UPDATE (allocated_minutes, status→ready)</div>
+          <div class="detail-row"><span class="label">Side FX</span>Invalidates performance cache</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Task Timer Started</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">PATCH /tasks/{date}/{index}/start</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">tasks</span> UPDATE (started_at, status→running) — partial index enforces one active timer per user</div>
+          <div class="detail-row"><span class="label">Guard</span>409 if another timer already running</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Task Timer Extended</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">PATCH /tasks/{date}/{index}/extend</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">tasks</span> UPDATE (allocated_minutes +Δ, extension_used→true) — one-time per task</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Task Confirmed (Completed)</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">PATCH /tasks/{date}/{index}/confirm</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">tasks</span> UPDATE (status→completed) · <span class="badge badge-table">streaks</span> recalculate · <span class="badge badge-table">rank_points</span> +2pts · <span class="badge badge-table">feed_entries</span> INSERT</div>
+          <div class="detail-row"><span class="label">Side FX</span><span class="badge badge-side ext">Push: rank_surpassed / leaderboard_topped if overtaken</span></div>
+          <div class="detail-row"><span class="label">Triggers</span>Streak Recalculated · Points Awarded · Feed Event Posted · Leaderboard Checked</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Task Abandoned</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /tasks/{task_id}/abandon</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">tasks</span> UPDATE (status→abandoned)</div>
+          <div class="detail-row"><span class="label">Side FX</span>Invalidates performance cache</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Task Reignited</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">PATCH /tasks/{date}/{index}/reignite</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">tasks</span> UPDATE (status→unallocated, clear allocated_minutes/started_at/extension_used)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Tasks Reordered</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">PUT /tasks/reorder</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">tasks</span> UPDATE (task_index) for each id in list</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Task Auto-Missed</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Trigger</span><span class="pill job">Job</span> auto_miss (scheduled, distributed lock)</div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">tasks</span> SELECT (unallocated/ready/running) + UPDATE (status→missed) · <span class="badge badge-table">users</span> SELECT (timezone) · <span class="badge badge-table">streaks</span> recalculate · <span class="badge badge-table">feed_entries</span> INSERT</div>
+          <div class="detail-row"><span class="label">Side FX</span><span class="badge badge-side ext">Push: day_missed notification per affected user</span></div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill qry">Query</span>Today's Tasks Fetched</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Endpoint</span><span class="badge badge-method">GET /tasks/today</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">tasks</span> SELECT (today, user_id)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill qry">Query</span>Task History Fetched</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Endpoint</span><span class="badge badge-method">GET /tasks/history</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">tasks</span> SELECT (paginated, user_id)</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  
+  <div class="domain">
+    <div class="domain-header">
+      <span class="domain-icon">📋</span>
+      <span class="domain-title">Check-ins &amp; Daily Routine</span>
+      <span class="domain-desc">routers/checkins.py · services/checkin.py</span>
+    </div>
+    <div class="event-list">
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Checkin Todos Updated</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">PUT /checkins/{date}/todos</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">checkins</span> SELECT/INSERT (upsert) · <span class="badge badge-table">tasks</span> DELETE (non-protected) + INSERT (new blueprint tasks)</div>
+          <div class="detail-row"><span class="label">Guard</span>Protects running/done/completed/missed tasks from deletion</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Todo Ticked (Toggled)</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">PUT /checkins/{date}/tick/{idx}</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">tasks</span> UPDATE (status toggle) · <span class="badge badge-table">streaks</span> recalculate · <span class="badge badge-table">rank_points</span> +2pts · <span class="badge badge-table">feed_entries</span> INSERT (if completing)</div>
+          <div class="detail-row"><span class="label">Side FX</span><span class="badge badge-side ext">Push: rank/leaderboard events if overtaken</span></div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Day Marked Done</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /checkins/{date}/done</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">checkins</span> UPDATE (marked_done→true) · <span class="badge badge-table">streaks</span> recalculate · <span class="badge badge-table">rank_points</span> +3pts · <span class="badge badge-table">feed_entries</span> INSERT (day_done)</div>
+          <div class="detail-row"><span class="label">Guard</span>≥80% tasks completed required</div>
+          <div class="detail-row"><span class="label">Side FX</span><span class="badge badge-side ext">Push: rank_surpassed / leaderboard_topped</span> — Performance cache invalidated</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Day Unmarked Done</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /checkins/{date}/undone</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">checkins</span> UPDATE (marked_done→false) · <span class="badge badge-table">streaks</span> recalculate</div>
+          <div class="detail-row"><span class="label">Guard</span>Today only</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill qry">Query</span>Checkin Fetched</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Endpoint</span><span class="badge badge-method">GET /checkins/{date}</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">checkins</span> SELECT (upsert-on-read — creates if missing)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill qry">Query</span>Week Checkins Fetched</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Endpoint</span><span class="badge badge-method">GET /checkins/week</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">checkins</span> SELECT (week window)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill qry">Query</span>Activity Graph Fetched</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Endpoint</span><span class="badge badge-method">GET /checkins/graph</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">checkins</span> SELECT (marked_done, YTD) · <span class="badge badge-table">tasks</span> SELECT (completed, YTD)</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  
+  <div class="domain">
+    <div class="domain-header">
+      <span class="domain-icon">🔥</span>
+      <span class="domain-title">Streak Tracking</span>
+      <span class="domain-desc">routers/streak.py · services/streak.py</span>
+    </div>
+    <div class="event-list">
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Streak Recalculated</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Trigger</span>Side-effect of: Task Confirmed, Todo Ticked, Day Done/Undone, Auto-Miss</div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-rpc">RPC: recalculate_streak_db</span> (reads checkins + tasks, upserts streaks — single PL/pgSQL frame)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Streak Broken</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Trigger</span>Detected in recalculate_streak when current_streak drops to 0</div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">feed_entries</span> INSERT (streak_broken) · <span class="badge badge-table">streaks</span> (updated by RPC)</div>
+          <div class="detail-row"><span class="label">Side FX</span><span class="badge badge-side ext">Push: "Streak Broken" notification</span></div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Streak Milestone Reached</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Trigger</span>Detected when streak % 10 == 0 (e.g. 10, 20, 30 days)</div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">feed_entries</span> INSERT (streak_milestone)</div>
+          <div class="detail-row"><span class="label">Side FX</span><span class="badge badge-side ext">Push: "Streak Milestone" notification</span></div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill qry">Query</span>Streak Fetched</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Endpoint</span><span class="badge badge-method">GET /streak</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">streaks</span> SELECT · <span class="badge badge-table">checkins</span> SELECT (365-day window) · <span class="badge badge-table">tasks</span> SELECT count (365-day window)</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  
+  <div class="domain">
+    <div class="domain-header">
+      <span class="domain-icon">🏆</span>
+      <span class="domain-title">Leaderboard &amp; Points</span>
+      <span class="domain-desc">routers/leaderboard.py · services/leaderboard.py</span>
+    </div>
+    <div class="event-list">
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Points Awarded</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Trigger</span>Task Confirmed (+2 pts), Todo Ticked (+2 pts), Day Done (+3 pts)</div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-rpc">RPC: award_points_atomic</span> → <span class="badge badge-table">rank_points</span> UPDATE (total_points, tier)</div>
+          <div class="detail-row"><span class="label">Side FX</span>If tier threshold crossed → Feed Event "rank_changed" (User Promoted)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Rank Surpassed</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Trigger</span>check_and_trigger_leaderboard_events after Task Confirmed or Todo Ticked</div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">feed_entries</span> INSERT (rank_surpassed)</div>
+          <div class="detail-row"><span class="label">Side FX</span><span class="badge badge-side ext">Push: "Rank Surpassed" to user who overtook</span></div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Leaderboard Topped</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Trigger</span>check_and_trigger_leaderboard_events when user takes #1 spot</div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">feed_entries</span> INSERT (leaderboard_topped)</div>
+          <div class="detail-row"><span class="label">Side FX</span><span class="badge badge-side ext">Push: "Leaderboard Topped" notification</span></div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Week Closed (Weekly Reset)</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Trigger</span><span class="pill job">Job</span> weekly_reset (every Monday 00:00 WAT, distributed lock)</div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">squads</span> SELECT · <span class="badge badge-table">tasks</span> SELECT (last week) · <span class="badge badge-table">streaks</span> SELECT · <span class="badge badge-table">rank_points</span> SELECT+UPDATE · <span class="badge badge-table">leaderboard_entries</span> UPSERT</div>
+          <div class="detail-row"><span class="label">Side FX</span>Top 2 finishers promoted · Last place demoted (squad ≥ 3) · Feed events for promotions/demotions</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>User Promoted</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Trigger</span>rank_system.promote_user — called on Week Closed (top 2) or points threshold crossed</div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">rank_points</span> UPDATE (tier, division) · <span class="badge badge-table">feed_entries</span> INSERT (rank_changed / promoted)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>User Demoted</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Trigger</span>rank_system.demote_user — called on Week Closed (last place in squad ≥ 3)</div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">rank_points</span> UPDATE (tier, division) · <span class="badge badge-table">feed_entries</span> INSERT (rank_dropped)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill qry">Query</span>Week Leaderboard Fetched</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Endpoint</span><span class="badge badge-method">GET /leaderboard/week</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">users</span> · <span class="badge badge-table">tasks</span> (week window) · <span class="badge badge-table">streaks</span> · <span class="badge badge-table">rank_points</span></div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill qry">Query</span>Leaderboard History Fetched</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Endpoint</span><span class="badge badge-method">GET /leaderboard/history</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">leaderboard_entries</span> · <span class="badge badge-table">users</span> · <span class="badge badge-table">rank_points</span></div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill qry">Query</span>Squad Ranks Fetched</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Endpoint</span><span class="badge badge-method">GET /leaderboard/ranks</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">users</span> · <span class="badge badge-table">rank_points</span> · <span class="badge badge-table">checkins</span> (YTD) · <span class="badge badge-table">tasks</span> (YTD)</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  
+  <div class="domain">
+    <div class="domain-header">
+      <span class="domain-icon">🪖</span>
+      <span class="domain-title">Squads</span>
+      <span class="domain-desc">routers/squads.py · services/squads.py</span>
+    </div>
+    <div class="event-list">
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Squad Created</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /squads</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-rpc">RPC: create_squad_atomic</span> → <span class="badge badge-table">squads</span> INSERT + <span class="badge badge-table">users</span> UPDATE (squad_id) + <span class="badge badge-table">rank_points</span> UPSERT · <span class="badge badge-table">feed_entries</span> INSERT (joined_squad)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Squad Joined (Invite Code)</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /squads/join</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-rpc">RPC: join_squad_atomic</span> → <span class="badge badge-table">squads</span> UPDATE (member_count) + <span class="badge badge-table">users</span> UPDATE (squad_id) + <span class="badge badge-table">rank_points</span> UPSERT · <span class="badge badge-table">feed_entries</span> INSERT (joined_squad)</div>
+          <div class="detail-row"><span class="label">Guard</span>Max 6 members</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Squad Joined (Contact / Direct)</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /squads/{squad_id}/request-join</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-rpc">RPC: join_squad_atomic</span> · <span class="badge badge-table">feed_entries</span> INSERT (joined_squad)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Squad Left</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">DELETE /squads/me/leave</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">users</span> UPDATE (squad_id→null) · <span class="badge badge-table">squads</span> UPDATE (member_count) or DELETE if empty</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Squad Invite Sent</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /squads/invite-contact</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">users</span> SELECT (invitee) · <span class="badge badge-table">squads</span> SELECT</div>
+          <div class="detail-row"><span class="label">Side FX</span><span class="badge badge-side ext">Email: squad invite sent to invitee</span></div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill qry">Query</span>My Squad Fetched</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Endpoint</span><span class="badge badge-method">GET /squads/me</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">squads</span> · <span class="badge badge-table">users</span> (members) · <span class="badge badge-table">streaks</span> · <span class="badge badge-table">rank_points</span> · <span class="badge badge-table">checkins</span> (today)</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  
+  <div class="domain">
+    <div class="domain-header">
+      <span class="domain-icon">🤝</span>
+      <span class="domain-title">Friends &amp; Social</span>
+      <span class="domain-desc">routers/friends.py · contacts.py</span>
+    </div>
+    <div class="event-list">
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Friend Request Sent</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /friends/request/{username}</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">friend_requests</span> INSERT or UPDATE (re-send)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Friend Request Accepted</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /friends/requests/{id}/accept</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-rpc">RPC: accept_friend_request_atomic</span> → <span class="badge badge-table">friend_requests</span> UPDATE (accepted) + <span class="badge badge-table">friendships</span> UPSERT (bidirectional)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Friend Request Declined</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /friends/requests/{id}/decline</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">friend_requests</span> UPDATE (declined)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Friendship Removed</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">DELETE /friends/{username}</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">friendships</span> DELETE (both directions)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill qry">Query</span>Friends Listed</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Endpoint</span><span class="badge badge-method">GET /friends</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">friendships</span> · <span class="badge badge-table">users</span> · <span class="badge badge-table">streaks</span></div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill qry">Query</span>Friend Week View Fetched</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Endpoint</span><span class="badge badge-method">GET /friends/{username}/week</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">checkins</span> SELECT (friend, week) · <span class="badge badge-table">friendships</span> guard</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill qry">Query</span>Friend Graph / Streak Fetched</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Endpoints</span><span class="badge badge-method">GET /friends/{username}/graph</span> · <span class="badge badge-method">GET /friends/{username}/streak</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">checkins</span> · <span class="badge badge-table">tasks</span> · <span class="badge badge-table">streaks</span></div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Contacts Searched</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /contacts/search</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">users</span> SELECT (phone match) · <span class="badge badge-table">squads</span> · <span class="badge badge-table">friendships</span> · <span class="badge badge-table">friend_requests</span></div>
+          <div class="detail-row"><span class="label">Returns</span>Enriched matches with squad + connection status</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  
+  <div class="domain">
+    <div class="domain-header">
+      <span class="domain-icon">📢</span>
+      <span class="domain-title">Squad Activity Feed</span>
+      <span class="domain-desc">routers/feed.py · services/feed.py</span>
+    </div>
+    <div class="event-list">
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Feed Event Posted</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Trigger</span>Side-effect of Task Confirmed, Day Done, Squad Joined/Created, Streak events, Rank events</div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">feed_entries</span> INSERT</div>
+          <div class="detail-row"><span class="label">Types</span>task_completed · day_done · day_missed · joined_squad · streak_broken · streak_milestone · rank_changed · rank_surpassed · leaderboard_topped · rank_dropped</div>
+          <div class="detail-row"><span class="label">Side FX</span><span class="badge badge-side ext">Push notification broadcast to squad</span></div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Feed Entries Seen</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /squads/me/feed/seen</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">feed_views</span> UPSERT (feed_entry_id, user_id)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill qry">Query</span>Squad Feed Fetched</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Endpoint</span><span class="badge badge-method">GET /squads/me/feed</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">feed_entries</span> · <span class="badge badge-table">users</span> · <span class="badge badge-table">feed_views</span></div>
+          <div class="detail-row"><span class="label">Pagination</span>cursor-based (before timestamp), max 100</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill qry">Query</span>Feed Summary Fetched</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Endpoint</span><span class="badge badge-method">GET /squads/me/feed/summary</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">tasks</span> (missed yesterday) · <span class="badge badge-table">feed_entries</span> (streak_broken) · <span class="badge badge-table">rank_points</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  
+  <div class="domain">
+    <div class="domain-header">
+      <span class="domain-icon">🔔</span>
+      <span class="domain-title">Push Notifications</span>
+      <span class="domain-desc">routers/notifications.py · services/notifications.py</span>
+    </div>
+    <div class="event-list">
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Push Subscription Registered</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /notifications/subscribe</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">push_subscriptions</span> UPSERT (on_conflict: endpoint)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Push Subscription Removed</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /notifications/unsubscribe</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">push_subscriptions</span> DELETE</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill job">Job</span>End-of-Day Warning Sent</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Trigger</span>Hourly job — fires for users whose local time is 23:00</div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">users</span> SELECT (timezone) · <span class="badge badge-table">tasks</span> SELECT (incomplete, today)</div>
+          <div class="detail-row"><span class="label">Side FX</span><span class="badge badge-side ext">Push: "Don't Miss Today's Routine!" per at-risk user</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  
+  <div class="domain">
+    <div class="domain-header">
+      <span class="domain-icon">📅</span>
+      <span class="domain-title">Day Templates (Blueprint)</span>
+      <span class="domain-desc">routers/templates.py · services/template.py</span>
+    </div>
+    <div class="event-list">
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Day Template Upserted</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">PUT /templates/{day}</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">day_templates</span> UPSERT · <span class="badge badge-table">checkins</span> sync (today's checkin if affected day matches today) · <span class="badge badge-table">tasks</span> sync (today's tasks from template)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Day Template Deleted</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">DELETE /templates/{day}</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">day_templates</span> DELETE</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill qry">Query</span>Templates Fetched</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Endpoints</span><span class="badge badge-method">GET /templates</span> · <span class="badge badge-method">GET /templates/{day}</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">day_templates</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  
+  <div class="domain">
+    <div class="domain-header">
+      <span class="domain-icon">🤖</span>
+      <span class="domain-title">AI Architect (LangGraph Agent)</span>
+      <span class="domain-desc">routers/architect.py · services/architect/</span>
+    </div>
+    <div class="event-list">
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Architect Session Started</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /architect/chat</span> (no session_id)</div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">architect_sessions</span> INSERT (id, user_id, messages: []) · <span class="badge badge-table">users</span> SELECT (timezone)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Architect Message Sent</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /architect/chat</span> (with session_id)</div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">architect_sessions</span> SELECT (history) + UPDATE (messages) · <span class="badge badge-table">tasks</span> SELECT (tools) · <span class="badge badge-table">day_templates</span> SELECT (tools) · <span class="badge badge-table">rank_points</span>/<span class="badge badge-table">streaks</span>/<span class="badge badge-table">checkins</span>/<span class="badge badge-table">leaderboard_entries</span> SELECT (tools)</div>
+          <div class="detail-row"><span class="label">Agent Tools</span>get_user_signals · load_blueprint · get_week_history · get_todays_tasks · estimate_task_duration · propose_blueprint · propose_standalone_task · propose_time_window · save_user_context</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Blueprint Proposal Committed</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /architect/commit</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-rpc">RPC: commit_blueprint</span> → <span class="badge badge-table">day_templates</span> UPSERT · <span class="badge badge-table">tasks</span> sync (today) · <span class="badge badge-table">architect_sessions</span> UPDATE (pending_proposal→null)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Standalone Task Proposal Committed</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /architect/commit</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">tasks</span> INSERT · <span class="badge badge-table">architect_sessions</span> UPDATE (pending_proposal→null)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Time Window Proposal Committed</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /architect/commit</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">tasks</span> UPDATE (window_start, window_end) · <span class="badge badge-table">architect_sessions</span> UPDATE</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Proposal Rejected</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Command</span><span class="badge badge-method">POST /architect/reject</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">architect_sessions</span> UPDATE (pending_proposal→null)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>User Context Captured</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Trigger</span>Agent tool: save_user_context — fires when user reveals day_shape, habits, fatigue etc.</div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">user_context</span> UPSERT (field-level: day_shape, planning_habit, workload_calibration, derail_pattern, fatigue_type, good_day_shape, recovery_pattern)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill ev">Event</span>Session Renamed / Deleted</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Commands</span><span class="badge badge-method">PATCH /architect/session/{id}</span> · <span class="badge badge-method">DELETE /architect/session/{id}</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">architect_sessions</span> UPDATE (title) / DELETE</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  
+  <div class="domain">
+    <div class="domain-header">
+      <span class="domain-icon">📊</span>
+      <span class="domain-title">Profile &amp; Dashboard</span>
+      <span class="domain-desc">routers/profile.py · dashboard.py</span>
+    </div>
+    <div class="event-list">
+
+      <div class="event">
+        <div class="event-name"><span class="pill qry">Query</span>Dashboard Summary Fetched</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Endpoint</span><span class="badge badge-method">GET /dashboard/summary</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">tasks</span> (today) · <span class="badge badge-table">streaks</span> · <span class="badge badge-table">checkins</span> (YTD marked_done) · <span class="badge badge-table">tasks</span> (YTD completed)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill qry">Query</span>Performance Stats Fetched</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Endpoint</span><span class="badge badge-method">GET /profile/performance-stats</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">tasks</span> · <span class="badge badge-table">checkins</span> · <span class="badge badge-table">streaks</span> · <span class="badge badge-table">rank_points</span></div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill qry">Query</span>AI Performance Signals Fetched</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Endpoint</span><span class="badge badge-method">GET /profile/ai-signals</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">tasks</span> · <span class="badge badge-table">checkins</span> · <span class="badge badge-table">streaks</span></div>
+          <div class="detail-row"><span class="label">Returns</span>completion_rate (30d + all-time), peak/dead day, trend, avg tasks/day</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill qry">Query</span>Week History Fetched</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Endpoint</span><span class="badge badge-method">GET /profile/week-history</span></div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">checkins</span> · <span class="badge badge-table">tasks</span> · <span class="badge badge-table">leaderboard_entries</span></div>
+          <div class="detail-row"><span class="label">Cache</span>5-min in-memory per (user_id, limit, offset)</div>
+        </div>
+      </div>
+
+      <div class="event">
+        <div class="event-name"><span class="pill qry">Query</span>Public Profile Fetched</div>
+        <div class="details">
+          <div class="detail-row"><span class="label">Endpoint</span><span class="badge badge-method">GET /profile/public/{username}</span> (no auth)</div>
+          <div class="detail-row"><span class="label">Tables</span><span class="badge badge-table">users</span> · <span class="badge badge-table">rank_points</span> · <span class="badge badge-table">streaks</span> · <span class="badge badge-table">checkins</span> (YTD) · <span class="badge badge-table">tasks</span> (YTD)</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <hr />
+
+  
+  <style>section-title { display: block; font-size: 14px; font-weight: 700; margin-bottom: 12px; }</style>
+  Database Table Interaction Map
+  <div class="db-summary">
+    <table>
+      <thead><tr><th>Table</th><th>Operations</th><th>Primary Domains</th></tr></thead>
+      <tbody>
+        <tr><td><strong>users</strong></td><td><div class="ops"><span class="op op-r">SELECT</span><span class="op op-w">UPDATE</span><span class="op op-s">trigger-INSERT</span></div></td><td>Auth, Profile, Squads, Notifications, all domains</td></tr>
+        <tr><td><strong>tasks</strong></td><td><div class="ops"><span class="op op-r">SELECT</span><span class="op op-w">INSERT</span><span class="op op-u">UPDATE</span><span class="op op-d">DELETE</span></div></td><td>Tasks, Checkins, Leaderboard, Dashboard, AI Architect</td></tr>
+        <tr><td><strong>checkins</strong></td><td><div class="ops"><span class="op op-r">SELECT</span><span class="op op-w">INSERT</span><span class="op op-u">UPDATE</span></div></td><td>Checkins, Streak, Leaderboard, Feed Summary, Dashboard</td></tr>
+        <tr><td><strong>streaks</strong></td><td><div class="ops"><span class="op op-r">SELECT</span><span class="op op-s">UPSERT</span></div></td><td>Streak, Squads, Friends, Leaderboard, Dashboard</td></tr>
+        <tr><td><strong>rank_points</strong></td><td><div class="ops"><span class="op op-r">SELECT</span><span class="op op-u">UPDATE</span><span class="op op-s">UPSERT</span></div></td><td>Leaderboard, Points, Squads, Profile, AI Architect</td></tr>
+        <tr><td><strong>leaderboard_entries</strong></td><td><div class="ops"><span class="op op-r">SELECT</span><span class="op op-s">UPSERT</span></div></td><td>Leaderboard (weekly close), Profile history</td></tr>
+        <tr><td><strong>feed_entries</strong></td><td><div class="ops"><span class="op op-r">SELECT</span><span class="op op-w">INSERT</span></div></td><td>Feed, Streak events, Rank events, Day events</td></tr>
+        <tr><td><strong>feed_views</strong></td><td><div class="ops"><span class="op op-s">UPSERT</span><span class="op op-r">SELECT</span></div></td><td>Feed (seen-by tracking)</td></tr>
+        <tr><td><strong>squads</strong></td><td><div class="ops"><span class="op op-r">SELECT</span><span class="op op-w">INSERT</span><span class="op op-u">UPDATE</span><span class="op op-d">DELETE</span></div></td><td>Squads, Contacts</td></tr>
+        <tr><td><strong>friendships</strong></td><td><div class="ops"><span class="op op-r">SELECT</span><span class="op op-s">UPSERT</span><span class="op op-d">DELETE</span></div></td><td>Friends, Contacts</td></tr>
+        <tr><td><strong>friend_requests</strong></td><td><div class="ops"><span class="op op-r">SELECT</span><span class="op op-w">INSERT</span><span class="op op-u">UPDATE</span></div></td><td>Friends, Contacts</td></tr>
+        <tr><td><strong>day_templates</strong></td><td><div class="ops"><span class="op op-r">SELECT</span><span class="op op-s">UPSERT</span><span class="op op-d">DELETE</span></div></td><td>Templates, Checkins, AI Architect commit</td></tr>
+        <tr><td><strong>push_subscriptions</strong></td><td><div class="ops"><span class="op op-r">SELECT</span><span class="op op-s">UPSERT</span><span class="op op-d">DELETE</span></div></td><td>Notifications</td></tr>
+        <tr><td><strong>architect_sessions</strong></td><td><div class="ops"><span class="op op-r">SELECT</span><span class="op op-w">INSERT</span><span class="op op-u">UPDATE</span><span class="op op-d">DELETE</span></div></td><td>AI Architect</td></tr>
+        <tr><td><strong>user_context</strong></td><td><div class="ops"><span class="op op-r">SELECT</span><span class="op op-s">UPSERT</span></div></td><td>AI Architect (save_user_context tool)</td></tr>
+        <tr><td><strong>password_reset_tokens</strong></td><td><div class="ops"><span class="op op-r">SELECT</span><span class="op op-w">INSERT</span><span class="op op-u">UPDATE</span></div></td><td>Auth (forgot/reset password)</td></tr>
+        <tr><td><strong>job_locks</strong></td><td><div class="ops"><span class="op op-s">RPC acquire</span><span class="op op-u">RPC release</span></div></td><td>Background jobs (auto_miss, weekly_reset)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer>Made with IBM Bob</footer>
+</div>
+</body>
+</html>
