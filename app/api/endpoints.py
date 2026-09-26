@@ -128,19 +128,94 @@ async def _run_analysis_pipeline(job_id: str, repo_url: str, repo_ref: str) -> N
 
 
 
+import io
+import re
+import urllib.request
+import zipfile
+
 async def _clone_repo(repo_url: str, repo_ref: str, target_dir: str) -> None:
-    proc = await asyncio.create_subprocess_exec(
-        "git", "clone", "--depth=1", "--branch", repo_ref, repo_url, target_dir,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    _, stderr = await proc.communicate()
-    if proc.returncode != 0:
+    """
+    Attempts git clone first. If git is missing (Errno 2) or fails,
+    falls back to downloading and extracting GitHub repository zipball via pure Python.
+    """
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "git", "clone", "--depth=1", "--branch", repo_ref, repo_url, target_dir,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+        if proc.returncode == 0:
+            return
+
         proc2 = await asyncio.create_subprocess_exec(
             "git", "clone", "--depth=1", repo_url, target_dir,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
         _, stderr2 = await proc2.communicate()
-        if proc2.returncode != 0:
-            raise RuntimeError(f"git clone failed: {stderr2.decode()}")
+        if proc2.returncode == 0:
+            return
+    except (FileNotFoundError, Exception):
+        pass
+
+    # Fallback: Pure Python GitHub Zip download
+    await _download_github_zip(repo_url, repo_ref, target_dir)
+
+
+def _download_github_zip_sync(repo_url: str, repo_ref: str, target_dir: str) -> None:
+    clean_url = repo_url.rstrip("/").removesuffix(".git")
+    match = re.search(r"github\.com/([^/]+)/([^/]+)", clean_url)
+    if not match:
+        raise RuntimeError(f"Could not parse GitHub repository URL: '{repo_url}'")
+
+    owner, repo = match.group(1), match.group(2)
+    branch = repo_ref or "main"
+
+    urls_to_try = [
+        f"https://codeload.github.com/{owner}/{repo}/zip/refs/heads/{branch}",
+        f"https://codeload.github.com/{owner}/{repo}/zip/refs/heads/main",
+        f"https://codeload.github.com/{owner}/{repo}/zip/refs/heads/master",
+        f"https://github.com/{owner}/{repo}/archive/HEAD.zip",
+    ]
+
+    downloaded_bytes = None
+    for zip_url in urls_to_try:
+        try:
+            req = urllib.request.Request(
+                zip_url,
+                headers={"User-Agent": "Rubix-Decomposition-Advisor/1.0"}
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                if resp.status == 200:
+                    downloaded_bytes = resp.read()
+                    break
+        except Exception:
+            continue
+
+    if not downloaded_bytes:
+        raise RuntimeError(f"Failed to fetch repository zip archive for '{owner}/{repo}'. Please verify repository URL and visibility.")
+
+    with zipfile.ZipFile(io.BytesIO(downloaded_bytes)) as zf:
+        namelist = zf.namelist()
+        if not namelist:
+            raise RuntimeError("Repository zip archive is empty.")
+
+        root_folder = namelist[0].split("/")[0]
+        for member in zf.infolist():
+            # Strip root folder prefix
+            rel_path = member.filename[len(root_folder) + 1 :]
+            if not rel_path:
+                continue
+            dest_path = os.path.join(target_dir, rel_path)
+            if member.is_dir():
+                os.makedirs(dest_path, exist_ok=True)
+            else:
+                os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+                with zf.open(member) as source, open(dest_path, "wb") as target:
+                    target.write(source.read())
+
+
+async def _download_github_zip(repo_url: str, repo_ref: str, target_dir: str) -> None:
+    await asyncio.to_thread(_download_github_zip_sync, repo_url, repo_ref, target_dir)
+
