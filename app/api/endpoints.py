@@ -142,7 +142,7 @@ async def _run_analysis_pipeline(job_id: str, repo_url: str, repo_ref: str) -> N
             }
 
             job_store.update_step(job_id, "Invoking LangGraph StateGraph pipeline...", 25)
-            final_state = await asyncio.to_thread(decomposition_graph.invoke, initial_state)
+            final_state = await decomposition_graph.ainvoke(initial_state)
 
             for log_entry in final_state.get("logs", []):
                 job_store.update_step(job_id, log_entry, 75)
