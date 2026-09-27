@@ -1,0 +1,29 @@
+title: Rubix Docs
+description: Repository Decomposition Advisor documentation for GitHub Pages.
+baseurl: ""
+url: ""
+
+remote_theme: just-the-docs/just-the-docs
+color_scheme: dark
+
+aux_links:
+  "Rubix App":
+    - "https://rubix.pxxl.click/"
+  "GitHub Backend":
+    - "https://github.com/techbyFEMI/Rubix_backend.git"
+
+nav_sort: case_insensitive
+heading_anchors: true
+search_enabled: true
+
+collections:
+  docs:
+    permalink: "/:collection/:path/"
+    output: true
+
+defaults:
+  - scope:
+      path: ""
+      type: "pages"
+    values:
+      layout: default

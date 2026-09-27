@@ -1,34 +1,35 @@
-# 🏆 Hackathon Judge Verification Checklist
+# Hackathon Judge Verification Checklist
 
-Welcome IBM Bob 2.0 Hackathon Judges! This document provides quick links and verification instructions for evaluating **Rubix (Repo Decomposition Advisor)**.
+Welcome to the Rubix evaluation checklist for IBM Bob 2.0 Hackathon judges.
 
----
+This document provides quick links and validation guidance for reviewing the project and confirming that it addresses the intended architecture and product goals.
 
-## 🔗 Project Deliverable Links
+## Project deliverable links
 
-* 🌐 **Landing Page**: [https://rubix-landing.pxxl.click](https://rubix-landing.pxxl.click)
-* 🚀 **Live Production Web Application**: [https://rubix.pxxl.click/](https://rubix.pxxl.click/)
-* 📡 **Live Backend API (Swagger UI)**: [https://rubixbackend.pxxl.click/docs](https://rubixbackend.pxxl.click/docs)
-* 🐙 **GitHub Backend Repository**: [https://github.com/techbyFEMI/Rubix_backend.git](https://github.com/techbyFEMI/Rubix_backend.git)
-* 📁 **IBM Bob IDE Session Proof Folder**: [`bob_sessions/`](https://github.com/techbyFEMI/Rubix_backend/tree/main/bob_sessions)
+- Landing page: https://rubix-landing.pxxl.click
+- Live production web app: https://rubix.pxxl.click/
+- Live backend API (Swagger UI): https://rubixbackend.pxxl.click/docs
+- GitHub backend repository: https://github.com/techbyFEMI/Rubix_backend.git
+- IBM Bob IDE session proof folder: `bob_sessions/`
 
----
+## Evaluation criteria alignment
 
-## ✅ Evaluation Criteria Alignment
+| Evaluation category | How Rubix addresses it |
+| --- | --- |
+| Use of IBM Bob 2.0 | Leverages IBM Bob 2.0 for whole-repository context reasoning and IBM Bob IDE sessions for domain event storming. |
+| Technical complexity | Built with Python 3.14, FastAPI, Pydantic v2, LangGraph, and a static AST-based dependency parser. |
+| User experience | Includes a modern dashboard with live log streaming, risk meters, ownership badges, and extraction recommendations. |
+| Real-world impact | Replaces weeks of manual refactoring guesswork with a faster, evidence-based microservice planning workflow. |
 
-| Evaluation Category | How Rubix Addresses It |
-|---|---|
-| **Use of IBM Bob 2.0** | Leverages IBM Bob 2.0 API (`app/engine/bob_client.py`) for whole-repository context reasoning and IBM Bob IDE in the local workspace for domain event storming. |
-| **Technical Complexity** | Built with Python 3.14 + FastAPI + Pydantic v2 + LangGraph StateGraph (4-step agent pipeline) + Python AST static dependency parser. |
-| **User Experience & Design** | Modern dark-mode web dashboard featuring live log terminal streaming, quantitative 3-signal risk meters, producer/consumer badges, and `#1 Extract First` tags. |
-| **Real-World Impact** | Replaces weeks of manual refactoring guesswork with an automated 60-second microservice boundary roadmap, preventing distributed monolith traps. |
+## 60-second quick test for judges
 
----
+1. Open the landing page at https://rubix-landing.pxxl.click.
+2. Click `Start Analysis` to launch the web dashboard.
+3. Paste the test monolithic repository URL: `https://github.com/techbyFEMI/routine-backend`.
+4. Click `Analyze Repo`.
+5. Observe the live terminal log executing the four-step DDD pipeline.
+6. Review the generated boundary cards showing risk scores, producer/consumer ownership badges, and the `#1 Extract First` recommendation.
 
-## ⚡ 60-Second Quick Test for Judges
+## Summary
 
-1. Open **[https://rubix-landing.pxxl.click](https://rubix-landing.pxxl.click)**.
-2. Click **Start Analysis** to launch the web dashboard at `https://rubix.pxxl.click/`.
-3. Paste the test monolithic repo URL: `https://github.com/techbyFEMI/routine-backend` and click **Analyze Repo**.
-4. Observe the **live terminal log** executing the 4-step DDD pipeline.
-5. Review the generated microservice boundary cards displaying **Risk Scores**, **Producer/Consumer badges**, and the **`#1 Extract First`** recommendation tag!
+Rubix demonstrates a practical architecture analysis workflow that blends AI-driven repository reasoning with measurable service extraction guidance. The solution is intended to reduce architectural uncertainty and provide evidence for better monolith-to-microservice modernization decisions.

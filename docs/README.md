@@ -1,58 +1,101 @@
-# 🚀 Rubix — Repository Decomposition Advisor
+# Rubix Documentation
 
-> **AI-Powered Microservice Boundary Advisor built for IBM Bob 2.0 & LangGraph**  
-> **Live Application**: [https://rubix-landing.pxxl.click](https://rubix-landing.pxxl.click)  
-> **Production Web App**: [https://rubix.pxxl.click/](https://rubix.pxxl.click/)  
-> **Backend Repository**: [https://github.com/techbyFEMI/Rubix_backend.git](https://github.com/techbyFEMI/Rubix_backend.git)
+Welcome to the documentation for Rubix — the Repository Decomposition Advisor.
 
----
+Rubix helps engineering teams analyze monolithic repositories and identify safer, more maintainable microservice boundaries. It combines repository-wide reasoning, dependency analysis, and extraction guidance to turn architecture refactoring from guesswork into a measurable process.
 
-## 📌 Executive Summary
+## What Rubix does
+
+Rubix analyzes a GitHub repository and identifies:
+
+- bounded contexts and likely domain groupings
+- cross-module dependency patterns
+- shared database write risks
+- service ownership and producer/consumer relationships
+- candidate microservice extraction opportunities
+- recommended refactoring order with risk scoring
+
+## Why this matters
+
+Modern monoliths hide coupling in ways that make decomposition risky:
+
+- shared database tables
+- cross-module function calls
+- implicit domain ownership conflicts
+- unclear microservice extraction boundaries
+
+Rubix reduces this risk by combining static analysis, whole-repository reasoning, and a quantitative coupling audit.
+
+## Executive summary
 
 Modernizing monolithic applications into microservices is one of the highest-friction tasks in software engineering. Decoupling a monolith requires tracing cross-module function calls, shared database tables, and implicit domain dependencies across thousands of lines of code.
 
-Manual refactoring relies on weeks of tribal guesswork. Making the wrong architectural cut results in **high-latency distributed monoliths**, circular dependencies, and cascading production failures.
+Manual refactoring relies on weeks of tribal guesswork. Making the wrong architectural cut results in high-latency distributed monoliths, circular dependencies, and cascading production failures.
 
-**Rubix (Repo Decomposition Advisor)** automates Domain-Driven Design (DDD) decomposition by pairing **IBM Bob 2.0 whole-repository context reasoning** with a **4-step LangGraph state graph agent** and a **3-signal quantitative coupling heuristic**. 
+Rubix (Repo Decomposition Advisor) automates Domain-Driven Design decomposition by pairing IBM Bob 2.0 whole-repository reasoning with a four-step LangGraph state graph and a three-signal quantitative coupling heuristic.
 
-Rubix turns weeks of dangerous refactoring guesswork into a **60-second automated, verifiable microservice extraction roadmap**.
+Rubix turns weeks of dangerous refactoring guesswork into a short, automated, and verifiable microservice extraction roadmap.
 
----
+## Core value propositions
 
-## ✨ Key Value Propositions
+1. Four-step DDD LangGraph agent
+   - Executes domain event extraction, bounded context discovery, coupling auditing, and candidate ranking.
+2. Whole-repository reasoning via IBM Bob 2.0
+   - Analyzes semantic relationships across files and modules, rather than isolated snippets.
+3. Producer/consumer ownership tracking
+   - Distinguishes services that create a resource from services that only read it.
+4. Three-signal quantitative coupling score
+   - Evaluates shared database writes, call frequency, and dependency density.
+5. Recommended extraction priority
+   - Tags candidates with extraction order such as "#1 Extract First".
 
-1. **4-Step DDD LangGraph Agent**: Executes automated domain event extraction, bounded context discovery, coupling auditing, and candidate ranking.
-2. **Whole-Repository Reasoning via IBM Bob 2.0**: Unlike standard LLM prompts that analyze isolated code snippets, IBM Bob 2.0 analyzes multi-file semantic relationships across complex monoliths.
-3. **Producer / Consumer Resource Ownership Tracking**: Explicitly distinguishes services that merely read data from services that **create a resource another service depends on** (`creates` vs `reads` with `produced_by` owner tags).
-4. **3-Signal Quantitative Coupling Score**: Evaluates shared database writes ($S_{\text{data}}$), call frequency ($S_{\text{calls}}$), and dependency graph density ($S_{\text{density}}$) to score boundary safety from `0.00` (Clean Cut) to `1.00` (Deep Entanglement).
-5. **Recommended Extraction Priority**: Tags candidate services with optimal refactoring order (`#1 Extract First`) based on domain isolation and low dependency fan-out.
-
----
-
-## 🏗️ High-Level Architecture Diagram
+## High-level architecture
 
 ```mermaid
 flowchart TD
-    A["User Inputs GitHub Repo URL"] --> B["FastAPI Backend (/analyze)"]
-    B --> C["Step 1: AST Parser & Call Graph Extractor"]
-    C --> D["Step 2: IBM Bob 2.0 Whole-Repo Context Engine"]
-    D --> E["Step 3: 3-Signal Coupling Audit Engine"]
-    E --> F["Step 4: Extraction Candidate Ranker"]
-    F --> G["Interactive Visual Boundary Cards (https://rubix.pxxl.click)"]
-    
-    subgraph "IBM Bob 2.0 Integration"
-    D
+    A[User inputs GitHub repo URL] --> B[FastAPI backend /analyze]
+    B --> C[Step 1: AST parser and call graph extractor]
+    C --> D[Step 2: IBM Bob 2.0 whole-repository engine]
+    D --> E[Step 3: 3-signal coupling audit engine]
+    E --> F[Step 4: extraction candidate ranker]
+    F --> G[Interactive visual boundary cards]
+
+    subgraph IBM Bob 2.0 Integration
+        D
     end
-    
-    subgraph "LangGraph StateGraph Agent"
-    C --> D --> E --> F
+
+    subgraph LangGraph StateGraph Agent
+        C --> D --> E --> F
     end
 ```
 
----
+## Target audience
 
-## 🎯 Target Audience
+- software architects planning monolith modernization
+- engineering managers assessing refactoring risk
+- DevOps and cloud engineers designing cleaner service boundaries
+- platform teams evaluating extraction feasibility
 
-* **Software Architects**: Planning legacy monolith modernization and microservice migration.
-* **Engineering Managers**: Evaluating architectural refactoring risk before allocating developer quarters.
-* **DevOps & Cloud Engineers**: Designing clean service boundaries for containerization and Kubernetes deployments.
+## Documentation sections
+
+- [Overview](overview.md)
+- [Architecture and IBM Bob 2.0](architecture.md)
+- [Data ownership model](data-ownership-model.md)
+- [API reference](api-reference.md)
+- [IBM Bob IDE guide](bob-ide-guide.md)
+- [Hackathon judge checklist](hackathon-judge-checklist.md)
+
+## Live project links
+
+- Landing page: https://rubix-landing.pxxl.click
+- Production app: https://rubix.pxxl.click/
+- Backend API docs: https://rubixbackend.pxxl.click/docs
+- GitHub backend repo: https://github.com/techbyFEMI/Rubix_backend.git
+
+## Deployment note
+
+This documentation is written to be compatible with GitHub Pages. The content preserves the original Rubix project information while removing GitBook-specific syntax and frontmatter required by GitBook hosting.
+
+## Summary
+
+Rubix is a practical architecture intelligence tool for teams modernizing monoliths into cleaner microservice boundaries. It helps organizations reduce refactoring risk by making model ownership, dependency intensity, and extraction priorities visible before major service cuts are made.

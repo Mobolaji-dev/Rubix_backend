@@ -1,21 +1,20 @@
-# 🔌 REST API Reference
+# API Reference
 
-The Rubix backend API is built using **Python 3.14 + FastAPI + Pydantic v2**, featuring an asynchronous job-polling architecture.
+The Rubix backend API is built using Python 3.14, FastAPI, and Pydantic v2. It uses an asynchronous job-polling architecture for repository analysis.
 
-* **Base Production API URL**: `https://rubixbackend.pxxl.click`
-* **Swagger OpenAPI Docs**: `https://rubixbackend.pxxl.click/docs`
+- Base production API URL: `https://rubixbackend.pxxl.click`
+- Swagger/OpenAPI docs: `https://rubixbackend.pxxl.click/docs`
 
----
+## 1. Start an analysis job (`POST /analyze`)
 
-## 1. Kick Off Analysis Job (`POST /analyze`)
+Initiates a four-step Domain-Driven Design decomposition pipeline for a GitHub repository.
 
-Initiates a 4-step DDD decomposition pipeline for a GitHub repository.
+- HTTP method: `POST`
+- Endpoint: `/analyze`
+- Status: `202 Accepted`
 
-* **HTTP Method**: `POST`
-* **Endpoint**: `/analyze`
-* **Status Code**: `202 Accepted`
+### Request body
 
-### Request Body
 ```json
 {
   "repo_url": "https://github.com/techbyFEMI/routine-backend",
@@ -23,7 +22,8 @@ Initiates a 4-step DDD decomposition pipeline for a GitHub repository.
 }
 ```
 
-### Response Payload
+### Response payload
+
 ```json
 {
   "job_id": "job_38a42f10",
@@ -31,17 +31,16 @@ Initiates a 4-step DDD decomposition pipeline for a GitHub repository.
 }
 ```
 
----
-
-## 2. Poll Job Execution Status (`GET /analyze/{job_id}/status`)
+## 2. Poll job status (`GET /analyze/{job_id}/status`)
 
 Polls live execution progress, progress percentages, and terminal step logs.
 
-* **HTTP Method**: `GET`
-* **Endpoint**: `/analyze/{job_id}/status`
-* **Status Code**: `200 OK`
+- HTTP method: `GET`
+- Endpoint: `/analyze/{job_id}/status`
+- Status: `200 OK`
 
-### Response Payload (Running)
+### Response payload while running
+
 ```json
 {
   "job_id": "job_38a42f10",
@@ -57,17 +56,16 @@ Polls live execution progress, progress percentages, and terminal step logs.
 }
 ```
 
----
-
-## 3. Fetch Completed Analysis Result (`GET /analyze/{job_id}/result`)
+## 3. Fetch a completed analysis result (`GET /analyze/{job_id}/result`)
 
 Retrieves the final microservice decomposition map, risk scores, and extraction order.
 
-* **HTTP Method**: `GET`
-* **Endpoint**: `/analyze/{job_id}/result`
-* **Status Code**: `200 OK`
+- HTTP method: `GET`
+- Endpoint: `/analyze/{job_id}/result`
+- Status: `200 OK`
 
-### Response Payload
+### Response payload
+
 ```json
 {
   "job_id": "job_38a42f10",
@@ -95,3 +93,7 @@ Retrieves the final microservice decomposition map, risk scores, and extraction 
   }
 }
 ```
+
+## Notes
+
+The API is designed to support a repository analysis workflow in which the user submits a codebase, waits for the pipeline to complete, and then inspects the resulting decomposition suggestions and boundary recommendations.
