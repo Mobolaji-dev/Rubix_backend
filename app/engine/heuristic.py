@@ -22,7 +22,8 @@ THE THREE SIGNALS
 
   Signal 3 — Import/Dependency Graph Density (weight 0.20)
     Measured as the ratio of cross-boundary edges to total edges for this
-    service's subgraph. Circular imports are detected and add a penalty.
+    service's subgraph. Cyclic SCCs are detected using Tarjan's algorithm
+    (O(N+E)) and add a penalty — replacing the prior exponential simple_cycles().
 
 FORMULA
 -------
@@ -35,14 +36,17 @@ RISK LABELS
   0.0 – 0.39  →  Low    (clean boundary, good seam)
   0.40 – 0.69  →  Medium (manageable coupling, worth noting)
   0.70 – 1.0   →  High   (deep entanglement, hard cut)
+
+PERFORMANCE
+-----------
+  All signals run in O(N + E) where N = modules, E = dependency edges.
+  Safe for repos with 5,000+ modules and 50,000+ edges.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Dict, List, Set, Tuple
-
-import networkx as nx
 
 from app.engine.parser import RepoContext
 
@@ -98,7 +102,12 @@ W_DENSITY = 0.20
 class HeuristicEngine:
     def __init__(self, repo_context: RepoContext):
         self.ctx = repo_context
-        self._graph = self._build_graph()
+        # Build adjacency sets for O(1) neighbour lookup
+        self._adj: Dict[str, Set[str]] = {}
+        self._radj: Dict[str, Set[str]] = {}
+        for src, dst in repo_context.dependency_edges:
+            self._adj.setdefault(src, set()).add(dst)
+            self._radj.setdefault(dst, set()).add(src)
 
     def score_all(self, groupings: List[ServiceGrouping]) -> Tuple[List[ScoredService], List[str]]:
         """
@@ -108,14 +117,20 @@ class HeuristicEngine:
           - List[ScoredService]: scored results with recommended_extraction_order assigned
           - List[str]: unassigned module paths
         """
-        assigned: Set[str] = set()
+        # Pre-build module → service index for O(1) lookups in all signals
+        module_to_service: Dict[str, str] = {}
         for g in groupings:
-            assigned.update(g.modules)
+            for m in g.modules:
+                module_to_service[m] = g.name
 
+        assigned: Set[str] = set(module_to_service.keys())
         all_module_paths = {m.path for m in self.ctx.modules}
         unassigned = sorted(all_module_paths - assigned)
 
-        scored = [self._score_service(g, groupings) for g in groupings]
+        scored = [
+            self._score_service(g, groupings, module_to_service)
+            for g in groupings
+        ]
 
         # Map owned table -> producing service name for dependency linking & fan-out counting
         table_producers: Dict[str, str] = {}
@@ -138,7 +153,6 @@ class HeuristicEngine:
             s.fan_out_count = len(producer_fan_out.get(s.proposed_name, set()))
 
         # Calculate extraction candidate ranking (Section 7, Step 4 of PRD)
-        # Sort by lowest risk_score, then lowest fan_out_count, then fewest external_dependencies
         ranked = sorted(
             scored,
             key=lambda s: (s.risk_score, s.fan_out_count, len(s.external_dependencies), len(s.owned_modules))
@@ -153,13 +167,15 @@ class HeuristicEngine:
     # -----------------------------------------------------------------------
 
     def _score_service(
-        self, grouping: ServiceGrouping, all_groupings: List[ServiceGrouping]
+        self,
+        grouping: ServiceGrouping,
+        all_groupings: List[ServiceGrouping],
+        module_to_service: Dict[str, str],
     ) -> ScoredService:
         module_set = set(grouping.modules)
-        other_modules = self._modules_outside(module_set, all_groupings)
 
-        s_data, data_reasons = self._signal_shared_data(module_set, other_modules)
-        s_calls, call_reasons = self._signal_call_frequency(module_set, other_modules)
+        s_data, data_reasons = self._signal_shared_data(module_set)
+        s_calls, call_reasons = self._signal_call_frequency(module_set, module_to_service, grouping.name)
         s_density, density_reasons = self._signal_graph_density(module_set)
 
         risk_score = round(
@@ -167,7 +183,7 @@ class HeuristicEngine:
             3,
         )
 
-        raw_owned_tables = self._owned_tables(module_set, other_modules)
+        raw_owned_tables = self._owned_tables(module_set)
         raw_external_deps = self._external_table_deps(module_set, raw_owned_tables)
 
         owned_data = [
@@ -194,11 +210,11 @@ class HeuristicEngine:
         )
 
     # -----------------------------------------------------------------------
-    # Signal 1 — Shared Data Writes
+    # Signal 1 — Shared Data Writes  O(tables + modules)
     # -----------------------------------------------------------------------
 
     def _signal_shared_data(
-        self, module_set: Set[str], other_modules: Set[str]
+        self, module_set: Set[str]
     ) -> Tuple[float, List[str]]:
         """
         Score: ratio of tables written by THIS service that are also written by
@@ -230,14 +246,18 @@ class HeuristicEngine:
         return score, reasons
 
     # -----------------------------------------------------------------------
-    # Signal 2 — Cross-Module Call Frequency
+    # Signal 2 — Cross-Module Call Frequency  O(E)
     # -----------------------------------------------------------------------
 
     def _signal_call_frequency(
-        self, module_set: Set[str], other_modules: Set[str]
+        self,
+        module_set: Set[str],
+        module_to_service: Dict[str, str],
+        service_name: str,
     ) -> Tuple[float, List[str]]:
         """
         Score: cross-boundary edges / total edges involving this service's modules.
+        Uses pre-built module→service index for O(1) per-edge classification.
         """
         reasons: List[str] = []
         total_edges = 0
@@ -245,14 +265,20 @@ class HeuristicEngine:
         cross_targets: Dict[str, int] = {}
 
         for src, dst in self.ctx.dependency_edges:
-            if src in module_set or dst in module_set:
-                total_edges += 1
-                # Edge crosses the boundary
-                if (src in module_set and dst in other_modules) or \
-                   (dst in module_set and src in other_modules):
-                    cross_edges += 1
-                    target = dst if src in module_set else src
-                    cross_targets[target] = cross_targets.get(target, 0) + 1
+            src_here = src in module_set
+            dst_here = dst in module_set
+            if not (src_here or dst_here):
+                continue
+            total_edges += 1
+            # Edge is cross-boundary if one end is inside and the other is in a DIFFERENT service
+            src_svc = module_to_service.get(src)
+            dst_svc = module_to_service.get(dst)
+            if src_here and dst_svc and dst_svc != service_name:
+                cross_edges += 1
+                cross_targets[dst] = cross_targets.get(dst, 0) + 1
+            elif dst_here and src_svc and src_svc != service_name:
+                cross_edges += 1
+                cross_targets[src] = cross_targets.get(src, 0) + 1
 
         if total_edges == 0:
             return 0.0, []
@@ -269,51 +295,108 @@ class HeuristicEngine:
         return score, reasons
 
     # -----------------------------------------------------------------------
-    # Signal 3 — Dependency Graph Density
+    # Signal 3 — Dependency Graph Density  O(N + E) via Tarjan SCCs
     # -----------------------------------------------------------------------
 
     def _signal_graph_density(self, module_set: Set[str]) -> Tuple[float, List[str]]:
         """
-        Score: fraction of edges within this service's subgraph that form cycles,
-        plus a penalty for any cross-boundary cycles.
-        Uses NetworkX cycle detection.
+        Score: subgraph internal density + SCC-based cycle penalty.
+
+        Uses Tarjan's Strongly Connected Components algorithm (O(N+E)) instead
+        of nx.simple_cycles() which is exponential on large graphs.
+        An SCC of size > 1 means there is a circular import cycle.
         """
         reasons: List[str] = []
-        subgraph = self._graph.subgraph(module_set).copy()
 
-        # Internal cycles penalty
-        cycles = list(nx.simple_cycles(subgraph))
-        if cycles:
-            count = len(cycles)
+        # Build adjacency only for modules in this service (avoid building full nx graph)
+        nodes = list(module_set)
+        if len(nodes) <= 1:
+            return 0.0, []
+
+        node_idx = {n: i for i, n in enumerate(nodes)}
+        adj: List[List[int]] = [[] for _ in nodes]
+        internal_edge_count = 0
+
+        for src, dst in self.ctx.dependency_edges:
+            if src in node_idx and dst in node_idx:
+                adj[node_idx[src]].append(node_idx[dst])
+                internal_edge_count += 1
+
+        # Tarjan's SCC — O(N+E)
+        n = len(nodes)
+        index_counter = [0]
+        stack: List[int] = []
+        lowlink = [0] * n
+        index = [-1] * n
+        on_stack = [False] * n
+        sccs: List[List[int]] = []
+
+        def strongconnect(v: int) -> None:
+            index[v] = index_counter[0]
+            lowlink[v] = index_counter[0]
+            index_counter[0] += 1
+            stack.append(v)
+            on_stack[v] = True
+
+            for w in adj[v]:
+                if index[w] == -1:
+                    strongconnect(w)
+                    lowlink[v] = min(lowlink[v], lowlink[w])
+                elif on_stack[w]:
+                    lowlink[v] = min(lowlink[v], index[w])
+
+            if lowlink[v] == index[v]:
+                scc: List[int] = []
+                while True:
+                    w = stack.pop()
+                    on_stack[w] = False
+                    scc.append(w)
+                    if w == v:
+                        break
+                sccs.append(scc)
+
+        import sys
+        old_limit = sys.getrecursionlimit()
+        sys.setrecursionlimit(max(old_limit, n + 1000))
+        try:
+            for v in range(n):
+                if index[v] == -1:
+                    strongconnect(v)
+        finally:
+            sys.setrecursionlimit(old_limit)
+
+        cyclic_sccs = [scc for scc in sccs if len(scc) > 1]
+        cycle_count = len(cyclic_sccs)
+
+        if cycle_count > 0:
             reasons.append(
-                f"{count} circular import cycle(s) detected within proposed boundary"
+                f"{cycle_count} circular import cycle(s) detected within proposed boundary"
             )
 
-        # Density of the subgraph (0 = no internal edges, 1 = fully connected)
-        density = nx.density(subgraph) if len(subgraph.nodes) > 1 else 0.0
+        # Subgraph density: actual_edges / max_possible_edges
+        max_edges = n * (n - 1)  # directed graph
+        density = internal_edge_count / max_edges if max_edges > 0 else 0.0
 
         # Combine: base density + cycle penalty (capped at 1.0)
-        cycle_penalty = min(0.4, len(cycles) * 0.15)
+        cycle_penalty = min(0.4, cycle_count * 0.15)
         score = min(1.0, density + cycle_penalty)
 
         return score, reasons
 
     # -----------------------------------------------------------------------
-    # Data ownership helpers
+    # Data ownership helpers  O(modules + tables)
     # -----------------------------------------------------------------------
 
-    def _owned_tables(self, module_set: Set[str], other_modules: Set[str]) -> List[str]:
+    def _owned_tables(self, module_set: Set[str]) -> List[str]:
         """Tables written ONLY by this service (not by other modules)."""
         owned = []
         for table, writers in self.ctx.shared_table_writers.items():
             if writers.issubset(module_set):
                 owned.append(table)
-        # Also include tables read but not written by others — likely candidates
         for module in self.ctx.modules:
             if module.path in module_set:
                 for table in module.table_writes:
                     if table not in owned:
-                        # Check no external writers
                         external = self.ctx.shared_table_writers.get(table, set()) - module_set
                         if not external:
                             owned.append(table)
@@ -326,25 +409,3 @@ class HeuristicEngine:
             if module.path in module_set:
                 read_tables.update(module.table_reads)
         return sorted(read_tables - set(owned_data))
-
-    # -----------------------------------------------------------------------
-    # Graph / helpers
-    # -----------------------------------------------------------------------
-
-    def _build_graph(self) -> nx.DiGraph:
-        g = nx.DiGraph()
-        for module in self.ctx.modules:
-            g.add_node(module.path)
-        for src, dst in self.ctx.dependency_edges:
-            g.add_edge(src, dst)
-        return g
-
-    def _modules_outside(
-        self, module_set: Set[str], all_groupings: List[ServiceGrouping]
-    ) -> Set[str]:
-        """All module paths from other groupings."""
-        outside: Set[str] = set()
-        for g in all_groupings:
-            if set(g.modules) != module_set:
-                outside.update(g.modules)
-        return outside

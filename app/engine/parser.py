@@ -185,33 +185,35 @@ class RepoParser:
         edges: List[Tuple[str, str]] = []
         known_paths = set(module_map.keys())
 
+        # Pre-build O(1) suffix index map for instant import resolution
+        suffix_map: Dict[str, str] = {}
+        for path in known_paths:
+            suffix_map[path] = path
+            parts = path.split("/")
+            for i in range(1, len(parts)):
+                suffix = "/".join(parts[i:])
+                if suffix not in suffix_map:
+                    suffix_map[suffix] = path
+
         for src_path, module in module_map.items():
             for imported in module.imports:
-                candidate = self._resolve_import(imported, known_paths)
+                candidate = self._resolve_import(imported, suffix_map)
                 if candidate and candidate != src_path:
                     edges.append((src_path, candidate))
 
         return edges
 
-    def _resolve_import(self, import_name: str, known_paths: Set[str]) -> str | None:
-        """
-        Best-effort: map an import string (e.g. 'services.leaderboard') to a
-        known file path (e.g. 'services/leaderboard.py').
-        """
+    def _resolve_import(self, import_name: str, suffix_map: Dict[str, str]) -> str | None:
+        """O(1) dictionary lookup to map an import string to a known file path."""
         as_path = import_name.replace(".", "/") + ".py"
-        if as_path in known_paths:
-            return as_path
-
-        for known in known_paths:
-            if known.endswith(as_path) or known.endswith("/" + as_path):
-                return known
+        if as_path in suffix_map:
+            return suffix_map[as_path]
 
         parts = import_name.split(".")
         for depth in range(len(parts)):
             candidate = "/".join(parts[depth:]) + ".py"
-            for known in known_paths:
-                if known.endswith(candidate) or known.endswith("/" + candidate):
-                    return known
+            if candidate in suffix_map:
+                return suffix_map[candidate]
 
         return None
 

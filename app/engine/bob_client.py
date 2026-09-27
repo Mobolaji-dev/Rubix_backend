@@ -69,8 +69,12 @@ class BobClient:
             "temperature": 0.2,
         }
 
+        if not self.api_key or not self.api_key.strip():
+            self.on_step("Using deterministic Domain-Driven bounded context grouping engine...")
+            return self._fallback_grouping(repo_context)
+
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.post(
                     f"{self.api_url}/chat/completions",
                     headers=headers,
