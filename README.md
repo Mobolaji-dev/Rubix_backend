@@ -56,13 +56,14 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Configure Environment
+### 2. Configure Environment & IBM Bob 2.0 Shell
 Create a `.env` file:
 ```env
 BOB_API_KEY=your_ibm_bob_api_key_here
-BOB_API_URL=https://bob.ibm.com/v1
 PORT=8000
 ```
+
+*Note: Rubix drives the official **IBM Bob 2.0 Shell CLI** (`bob run`) as an asynchronous subprocess, utilizing whole-repository context and recording token usage automatically.*
 
 ### 3. Run FastAPI Dev Server
 ```bash

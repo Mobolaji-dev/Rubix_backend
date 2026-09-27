@@ -1,23 +1,33 @@
 """
-bob_client.py — IBM Bob API Orchestration Layer.
+bob_client.py — IBM Bob 2.0 Orchestration via Bob Shell CLI.
 
-Constrains IBM Bob 2.0 using the 4-Step DDD-Derived Prompt Sequence:
+Drives the official `bob` CLI (Bob Shell) as a subprocess using the
+4-Step DDD-Derived Prompt Sequence:
   Step 1 — Domain Event Extraction (Event Storming)
   Step 2 — Bounded Context Identification (Grouping modules by business capability)
   Step 3 — Coupling Audit (Flagging qualitative in-memory vs network call seams)
   Step 4 — Extraction Candidate Ranking (Recommended extraction order)
+
+Bob Shell is authenticated via the BOB_API_KEY environment variable.
+Install: curl -fsSL https://bob.ibm.com/download/bobshell.sh | bash --pm npm
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
+import os
+import re
 from pathlib import Path
 from typing import Callable, List, Dict, Any
-import httpx
 
 from app.config import settings
 from app.engine.parser import RepoContext
 from app.engine.heuristic import ServiceGrouping
+
+
+# Max modules to include in the Bob prompt to avoid overly long inputs
+_BOB_MODULE_LIMIT = 60
 
 
 class BobClient:
@@ -26,84 +36,153 @@ class BobClient:
         on_step: callback to emit live status step logs for frontend / judges.
         """
         self.api_key = settings.bob_api_key
-        self.api_url = settings.bob_api_url.rstrip("/")
         self.on_step = on_step or (lambda msg: None)
+
+    # ------------------------------------------------------------------
+    # Public entry point
+    # ------------------------------------------------------------------
 
     async def analyse(self, repo_context: RepoContext) -> List[ServiceGrouping]:
         """
-        Runs the 4-step sequence against IBM Bob's full-repo reasoning context.
+        Runs the 4-step sequence against IBM Bob via the Bob Shell CLI.
+        Falls back to deterministic DDD grouping if Bob Shell is unavailable.
         """
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-
-        # Step 1: Domain Event Extraction
-        self.on_step("Step 1/4 [Event Storming]: IBM Bob 2.0 analyzing domain events & commands across full repo...")
-        event_prompt = self._build_step1_prompt(repo_context)
-
-        # Step 2: Bounded Context Identification
-        self.on_step("Step 2/4 [Bounded Contexts]: IBM Bob 2.0 grouping modules into domain microservices...")
-        context_prompt = self._build_step2_prompt(repo_context)
-
-        # Step 3: Coupling Audit
-        self.on_step("Step 3/4 [Coupling Audit]: IBM Bob 2.0 auditing in-memory vs network boundaries...")
-
-        # Step 4: Extraction Candidate Ranking
-        self.on_step("Step 4/4 [Extraction Ranking]: IBM Bob 2.0 formatting final service candidate breakdown...")
-
-        payload = {
-            "model": "ibm-bob-2.0",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are IBM Bob 2.0, an expert software architect specializing in microservice decomposition. "
-                        "Given a repository context, group the source modules into clean, cohesive microservices. "
-                        "Return ONLY valid JSON matching this structure: "
-                        '[{"name": "ServiceName", "modules": ["relative/path/1.py", "relative/path/2.py"]}]'
-                    ),
-                },
-                {"role": "user", "content": context_prompt},
-            ],
-            "temperature": 0.2,
-        }
-
         if not self.api_key or not self.api_key.strip():
-            self.on_step("Using deterministic Domain-Driven bounded context grouping engine...")
+            self.on_step("No BOB_API_KEY set — using deterministic Domain-Driven bounded context grouping engine...")
             return self._fallback_grouping(repo_context)
 
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.post(
-                    f"{self.api_url}/chat/completions",
-                    headers=headers,
-                    json=payload,
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    content = data["choices"][0]["message"]["content"]
-                    groupings_data = json.loads(content)
-                    return [
-                        ServiceGrouping(
-                            name=g.get("name", "ProposedService"),
-                            modules=g.get("modules", []),
-                        )
-                        for g in groupings_data
-                    ]
-        except Exception as err:
-            self.on_step(f"Note: IBM Bob live endpoint call ({err}). Generating structured domain grouping...")
+        bob_bin = settings.bob_bin
+        if not bob_bin:
+            self.on_step("Bob Shell CLI not found on PATH — using deterministic Domain-Driven bounded context grouping engine...")
+            return self._fallback_grouping(repo_context)
 
-        # Fallback grouping parser if API response requires direct domain extraction
-        return self._fallback_grouping(repo_context)
+        return await self._run_bob_shell(bob_bin, repo_context)
+
+    # ------------------------------------------------------------------
+    # Bob Shell CLI integration
+    # ------------------------------------------------------------------
+
+    async def _run_bob_shell(
+        self, bob_bin: str, repo_context: RepoContext
+    ) -> List[ServiceGrouping]:
+        """Invoke `bob run` non-interactively and parse the JSON response."""
+
+        self.on_step("Step 1/4 [Event Storming]: IBM Bob 2.0 analyzing domain events & commands across full repo...")
+        self.on_step("Step 2/4 [Bounded Contexts]: IBM Bob 2.0 grouping modules into domain microservices...")
+        self.on_step("Step 3/4 [Coupling Audit]: IBM Bob 2.0 auditing in-memory vs network boundaries...")
+        self.on_step("Step 4/4 [Extraction Ranking]: IBM Bob 2.0 formatting final service candidate breakdown...")
+
+        prompt = self._build_bob_prompt(repo_context)
+
+        env = os.environ.copy()
+        env["BOB_API_KEY"] = self.api_key
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                bob_bin, "run",
+                "--accept-license",
+                "--trust",
+                prompt,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120.0)
+        except asyncio.TimeoutError:
+            self.on_step("IBM Bob timed out after 120s — falling back to deterministic grouping engine...")
+            return self._fallback_grouping(repo_context)
+        except Exception as err:
+            self.on_step(f"IBM Bob Shell error ({err}) — falling back to deterministic grouping engine...")
+            return self._fallback_grouping(repo_context)
+
+        output = stdout.decode("utf-8", errors="replace").strip()
+
+        if proc.returncode != 0 or not output:
+            stderr_msg = stderr.decode("utf-8", errors="replace").strip()
+            self.on_step(
+                f"IBM Bob Shell exited with code {proc.returncode} — "
+                f"falling back to deterministic grouping engine... ({stderr_msg[:120]})"
+            )
+            return self._fallback_grouping(repo_context)
+
+        groupings = self._parse_bob_output(output)
+        if not groupings:
+            self.on_step("IBM Bob output could not be parsed — falling back to deterministic grouping engine...")
+            return self._fallback_grouping(repo_context)
+
+        self.on_step(f"IBM Bob 2.0 identified {len(groupings)} bounded context services.")
+        return groupings
+
+    # ------------------------------------------------------------------
+    # Prompt construction
+    # ------------------------------------------------------------------
+
+    def _build_bob_prompt(self, repo_context: RepoContext) -> str:
+        """Build the single-pass DDD decomposition prompt for Bob Shell."""
+        modules = [m.path for m in repo_context.modules[:_BOB_MODULE_LIMIT]]
+        module_list = json.dumps(modules, indent=2)
+
+        return (
+            f"You are an expert software architect specializing in microservice decomposition using "
+            f"Domain-Driven Design (DDD).\n\n"
+            f"Repository: {repo_context.repo_url}\n"
+            f"Total modules parsed: {repo_context.total_module_count}\n\n"
+            f"Source modules (first {len(modules)}):\n{module_list}\n\n"
+            f"Task: Analyze these source modules and group them into cohesive, domain-aligned microservices "
+            f"using Event Storming and Bounded Context identification.\n\n"
+            f"Return ONLY a valid JSON array (no markdown, no prose) matching this exact structure:\n"
+            f'[{{"name": "ServiceName", "modules": ["relative/path/1.py", "relative/path/2.py"]}}]'
+        )
+
+    # ------------------------------------------------------------------
+    # Output parser
+    # ------------------------------------------------------------------
+
+    def _parse_bob_output(self, output: str) -> List[ServiceGrouping]:
+        """
+        Extract a JSON array from Bob Shell's text output.
+        Bob Shell may wrap the JSON in prose — we scan for the first [ ... ] block.
+        """
+        # Try direct parse first
+        try:
+            data = json.loads(output)
+            if isinstance(data, list):
+                return self._to_groupings(data)
+        except json.JSONDecodeError:
+            pass
+
+        # Scan for a JSON array embedded in prose output
+        match = re.search(r"\[.*?\]", output, re.DOTALL)
+        if match:
+            try:
+                data = json.loads(match.group(0))
+                if isinstance(data, list):
+                    return self._to_groupings(data)
+            except json.JSONDecodeError:
+                pass
+
+        return []
+
+    def _to_groupings(self, data: List[Dict[str, Any]]) -> List[ServiceGrouping]:
+        return [
+            ServiceGrouping(
+                name=g.get("name", "ProposedService"),
+                modules=g.get("modules", []),
+            )
+            for g in data
+            if isinstance(g, dict)
+        ]
+
+    # ------------------------------------------------------------------
+    # Deterministic DDD fallback
+    # ------------------------------------------------------------------
 
     def _fallback_grouping(self, repo_context: RepoContext) -> List[ServiceGrouping]:
         """Group modules deterministically into Domain-Driven bounded context services."""
         groups: Dict[str, List[str]] = {}
         for m in repo_context.modules:
             path_lower = m.path.lower()
-            fname = Path(m.path).name.lower().replace(".py", "").replace(".js", "").replace(".ts", "")
-            
+
             if any(k in path_lower for k in ["auth", "user", "profile", "jwt", "session"]):
                 svc_name = "User & Auth Service"
             elif any(k in path_lower for k in ["task", "todo", "category"]):
@@ -118,12 +197,28 @@ class BobClient:
                 svc_name = "Goal Architect AI Service"
             elif any(k in path_lower for k in ["feed", "notification", "email", "push"]):
                 svc_name = "Notification & Feed Service"
+            elif any(k in path_lower for k in ["product", "order", "checkout", "cart", "payment", "invoice"]):
+                svc_name = "Commerce & Orders Service"
+            elif any(k in path_lower for k in ["inventory", "warehouse", "stock", "fulfillment"]):
+                svc_name = "Inventory & Fulfillment Service"
+            elif any(k in path_lower for k in ["account", "billing", "subscription", "plan"]):
+                svc_name = "Billing & Accounts Service"
+            elif any(k in path_lower for k in ["search", "elastic", "index", "filter"]):
+                svc_name = "Search & Discovery Service"
+            elif any(k in path_lower for k in ["shipping", "delivery", "tracking"]):
+                svc_name = "Shipping & Delivery Service"
+            elif any(k in path_lower for k in ["plugin", "webhook", "integration", "api"]):
+                svc_name = "Integrations & Webhooks Service"
             else:
                 svc_name = "Core Infrastructure Service"
 
             groups.setdefault(svc_name, []).append(m.path)
 
         return [ServiceGrouping(name=k, modules=v) for k, v in groups.items()]
+
+    # ------------------------------------------------------------------
+    # Legacy prompt builders (kept for reference / judge docs)
+    # ------------------------------------------------------------------
 
     def _build_step1_prompt(self, repo_context: RepoContext) -> str:
         return (

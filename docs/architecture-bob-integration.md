@@ -47,22 +47,40 @@ Where:
 
 ## ⚡ IBM Bob 2.0 Client Implementation
 
+Rubix invokes the official **IBM Bob 2.0 Shell CLI** (`bob run`) as a subprocess, injecting `BOB_API_KEY` into the process environment and authorizing execution with `--accept-license` and `--trust`:
+
 ```python
 # app/engine/bob_client.py
+import asyncio
 import os
-import httpx
+import json
+from app.config import settings
+from app.engine.parser import RepoContext
+from app.engine.heuristic import ServiceGrouping
 
-BOB_API_KEY = os.environ.get("BOB_API_KEY")
-BOB_API_URL = os.environ.get("BOB_API_URL", "https://bob.ibm.com/v1")
+class BobClient:
+    def __init__(self, api_key: str = None, on_step=None):
+        self.api_key = api_key or settings.bob_api_key
+        self.on_step = on_step or (lambda msg: None)
 
-async def invoke_bob_reasoning(prompt: str) -> str:
-    headers = {"Authorization": f"Bearer {BOB_API_KEY}"}
-    payload = {
-        "model": "bob-2.0-reasoning",
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.2,
-    }
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(f"{BOB_API_URL}/chat/completions", json=payload, headers=headers)
-        return resp.json()["choices"][0]["message"]["content"]
+    async def analyse(self, repo_context: RepoContext) -> list[ServiceGrouping]:
+        bob_bin = settings.bob_bin  # Locates 'bob' CLI executable
+        prompt = self._build_bob_prompt(repo_context)
+        
+        env = os.environ.copy()
+        env["BOB_API_KEY"] = self.api_key
+
+        proc = await asyncio.create_subprocess_exec(
+            bob_bin, "run",
+            "--accept-license",
+            "--trust",
+            prompt,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=env,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120.0)
+        output = stdout.decode("utf-8", errors="replace").strip()
+        
+        return self._parse_bob_output(output)
 ```

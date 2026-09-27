@@ -16,7 +16,7 @@ This document provides quick links and validation guidance for reviewing the pro
 
 | Evaluation category | How Rubix addresses it |
 | --- | --- |
-| Use of IBM Bob 2.0 | Leverages IBM Bob 2.0 for whole-repository context reasoning and IBM Bob IDE sessions for domain event storming. |
+| Use of IBM Bob 2.0 | Drives official **IBM Bob 2.0 Shell CLI** (`bob run`) as an async subprocess for whole-repository context reasoning and Bounded Context grouping. Logs token consumption and cost per run. |
 | Technical complexity | Built with Python 3.14, FastAPI, Pydantic v2, LangGraph, and a static AST-based dependency parser. |
 | User experience | Includes a modern dashboard with live log streaming, risk meters, ownership badges, and extraction recommendations. |
 | Real-world impact | Replaces weeks of manual refactoring guesswork with a faster, evidence-based microservice planning workflow. |
