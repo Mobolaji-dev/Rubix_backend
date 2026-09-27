@@ -82,7 +82,7 @@ _SKIP_DIRS = {
     ".git", "__pycache__", "node_modules", ".venv", "venv",
     "dist", "build", ".next", "migrations", "alembic",
 }
-_SKIP_EXTENSIONS = {".pyc", ".pyo", ".lock", ".md", ".txt", ".json", ".yaml", ".yml", ".env"}
+_ALLOWED_EXTENSIONS = {".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".java"}
 
 
 # ---------------------------------------------------------------------------
@@ -187,7 +187,6 @@ class RepoParser:
 
         for src_path, module in module_map.items():
             for imported in module.imports:
-                # Try to match import name to a known file path
                 candidate = self._resolve_import(imported, known_paths)
                 if candidate and candidate != src_path:
                     edges.append((src_path, candidate))
@@ -199,16 +198,21 @@ class RepoParser:
         Best-effort: map an import string (e.g. 'services.leaderboard') to a
         known file path (e.g. 'services/leaderboard.py').
         """
-        # Convert dot notation to path and try .py extension
         as_path = import_name.replace(".", "/") + ".py"
         if as_path in known_paths:
             return as_path
-        # Try without leading package prefix
+
+        for known in known_paths:
+            if known.endswith(as_path) or known.endswith("/" + as_path):
+                return known
+
         parts = import_name.split(".")
         for depth in range(len(parts)):
             candidate = "/".join(parts[depth:]) + ".py"
-            if candidate in known_paths:
-                return candidate
+            for known in known_paths:
+                if known.endswith(candidate) or known.endswith("/" + candidate):
+                    return known
+
         return None
 
     def _find_shared_writers(self, module_map: Dict[str, ModuleInfo]) -> Dict[str, Set[str]]:
@@ -224,13 +228,12 @@ class RepoParser:
     # -----------------------------------------------------------------------
 
     def _walk_files(self):
-        """Yield all source files in the repo, skipping noise."""
+        """Yield all source code files in the repo, skipping non-code noise."""
         for root, dirs, files in os.walk(self.repo_path):
-            # Prune directories in-place
             dirs[:] = [d for d in dirs if d not in _SKIP_DIRS and not d.startswith(".")]
             for fname in files:
                 fpath = Path(root) / fname
-                if fpath.suffix not in _SKIP_EXTENSIONS:
+                if fpath.suffix.lower() in _ALLOWED_EXTENSIONS:
                     yield fpath
 
     def _read_file(self, path: Path) -> str | None:

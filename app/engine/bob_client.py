@@ -11,6 +11,7 @@ Constrains IBM Bob 2.0 using the 4-Step DDD-Derived Prompt Sequence:
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Callable, List, Dict, Any
 import httpx
 
@@ -93,17 +94,30 @@ class BobClient:
         return self._fallback_grouping(repo_context)
 
     def _fallback_grouping(self, repo_context: RepoContext) -> List[ServiceGrouping]:
-        """Group modules deterministically by domain paths when offline."""
+        """Group modules deterministically into Domain-Driven bounded context services."""
         groups: Dict[str, List[str]] = {}
         for m in repo_context.modules:
-            parts = m.path.split("/")
-            if len(parts) > 1 and parts[0] in {"app", "src", "services", "routine_api"}:
-                domain_name = parts[1].replace(".py", "").capitalize() + "Service"
-            elif len(parts) > 1:
-                domain_name = parts[0].capitalize() + "Service"
+            path_lower = m.path.lower()
+            fname = Path(m.path).name.lower().replace(".py", "").replace(".js", "").replace(".ts", "")
+            
+            if any(k in path_lower for k in ["auth", "user", "profile", "jwt", "session"]):
+                svc_name = "User & Auth Service"
+            elif any(k in path_lower for k in ["task", "todo", "category"]):
+                svc_name = "Task Management Service"
+            elif any(k in path_lower for k in ["checkin", "streak", "auto_miss"]):
+                svc_name = "Checkin & Streak Service"
+            elif any(k in path_lower for k in ["leaderboard", "rank", "performance"]):
+                svc_name = "Leaderboard & Analytics Service"
+            elif any(k in path_lower for k in ["squad", "friend"]):
+                svc_name = "Squad & Social Service"
+            elif any(k in path_lower for k in ["architect", "graph", "llm"]):
+                svc_name = "Goal Architect AI Service"
+            elif any(k in path_lower for k in ["feed", "notification", "email", "push"]):
+                svc_name = "Notification & Feed Service"
             else:
-                domain_name = "CoreService"
-            groups.setdefault(domain_name, []).append(m.path)
+                svc_name = "Core Infrastructure Service"
+
+            groups.setdefault(svc_name, []).append(m.path)
 
         return [ServiceGrouping(name=k, modules=v) for k, v in groups.items()]
 
