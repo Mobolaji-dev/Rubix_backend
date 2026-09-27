@@ -77,12 +77,11 @@ class BobClient:
         env = os.environ.copy()
         env["BOB_API_KEY"] = self.api_key
 
+        cmd = bob_bin.split() + ["run", "--accept-license", "--trust", prompt]
+
         try:
             proc = await asyncio.create_subprocess_exec(
-                bob_bin, "run",
-                "--accept-license",
-                "--trust",
-                prompt,
+                *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=env,

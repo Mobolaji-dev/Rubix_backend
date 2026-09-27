@@ -44,22 +44,35 @@ class Settings:
             if os.path.isfile(path) and os.access(path, os.X_OK):
                 return path
 
+        node_bin = shutil.which("node")
+        js_candidates = [
+            os.path.join(home, ".local", "node_modules", "bobshell", "dist", "bob.js"),
+            "/tmp/node_modules/bobshell/dist/bob.js",
+        ]
+        if node_bin:
+            for jsc in js_candidates:
+                if os.path.isfile(jsc):
+                    return f"{node_bin} {jsc}"
+
         # Auto-install bobshell if npm is available in production environment
         npm_bin = shutil.which("npm")
         if npm_bin:
-            try:
-                import subprocess
-                target_dir = os.path.join(home, ".local")
-                subprocess.run(
-                    [npm_bin, "install", "--prefix", target_dir, "bobshell"],
-                    capture_output=True,
-                    timeout=60,
-                )
-                target = os.path.join(target_dir, "node_modules", ".bin", "bob")
-                if os.path.isfile(target) and os.access(target, os.X_OK):
-                    return target
-            except Exception:
-                pass
+            for target_dir in [os.path.join(home, ".local"), "/tmp"]:
+                try:
+                    import subprocess
+                    subprocess.run(
+                        [npm_bin, "install", "--prefix", target_dir, "bobshell"],
+                        capture_output=True,
+                        timeout=90,
+                    )
+                    target = os.path.join(target_dir, "node_modules", ".bin", "bob")
+                    if os.path.isfile(target) and os.access(target, os.X_OK):
+                        return target
+                    js_target = os.path.join(target_dir, "node_modules", "bobshell", "dist", "bob.js")
+                    if node_bin and os.path.isfile(js_target):
+                        return f"{node_bin} {js_target}"
+                except Exception:
+                    pass
 
         return None
 
