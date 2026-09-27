@@ -139,38 +139,92 @@ class BobClient:
 
     def _parse_bob_output(self, output: str) -> List[ServiceGrouping]:
         """
-        Extract a JSON array from Bob Shell's text output.
-        Bob Shell may wrap the JSON in prose — we scan for the first [ ... ] block.
+        Extract a JSON array or object from Bob Shell's text output.
+        Handles markdown code fences, outermost array/object brackets, and key aliases.
         """
-        # Try direct parse first
-        try:
-            data = json.loads(output)
-            if isinstance(data, list):
-                return self._to_groupings(data)
-        except json.JSONDecodeError:
-            pass
+        if not output:
+            return []
 
-        # Scan for a JSON array embedded in prose output
-        match = re.search(r"\[.*?\]", output, re.DOTALL)
-        if match:
-            try:
-                data = json.loads(match.group(0))
-                if isinstance(data, list):
-                    return self._to_groupings(data)
-            except json.JSONDecodeError:
-                pass
+        text = output.strip()
+
+        # 1. Clean markdown code fences if present (e.g. ```json ... ```)
+        code_block_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text, re.IGNORECASE)
+        if code_block_match:
+            candidate = code_block_match.group(1).strip()
+            parsed = self._try_parse_json(candidate)
+            if parsed:
+                return parsed
+
+        # 2. Try parsing entire stripped output directly
+        parsed = self._try_parse_json(text)
+        if parsed:
+            return parsed
+
+        # 3. Find outermost JSON array [ ... ]
+        first_bracket = text.find("[")
+        last_bracket = text.rfind("]")
+        if first_bracket != -1 and last_bracket > first_bracket:
+            array_str = text[first_bracket : last_bracket + 1]
+            parsed = self._try_parse_json(array_str)
+            if parsed:
+                return parsed
+
+        # 4. Find outermost JSON object { ... }
+        first_brace = text.find("{")
+        last_brace = text.rfind("}")
+        if first_brace != -1 and last_brace > first_brace:
+            obj_str = text[first_brace : last_brace + 1]
+            parsed = self._try_parse_json(obj_str)
+            if parsed:
+                return parsed
 
         return []
 
+    def _try_parse_json(self, text: str) -> List[ServiceGrouping] | None:
+        try:
+            data = json.loads(text)
+            if isinstance(data, list):
+                groupings = self._to_groupings(data)
+                if groupings:
+                    return groupings
+            elif isinstance(data, dict):
+                for key in ["services", "groupings", "bounded_contexts", "microservices", "data", "result", "candidates"]:
+                    if key in data and isinstance(data[key], list):
+                        groupings = self._to_groupings(data[key])
+                        if groupings:
+                            return groupings
+                groupings = self._to_groupings([data])
+                if groupings:
+                    return groupings
+        except Exception:
+            pass
+        return None
+
     def _to_groupings(self, data: List[Dict[str, Any]]) -> List[ServiceGrouping]:
-        return [
-            ServiceGrouping(
-                name=g.get("name", "ProposedService"),
-                modules=g.get("modules", []),
+        groupings = []
+        for g in data:
+            if not isinstance(g, dict):
+                continue
+            name = (
+                g.get("name")
+                or g.get("service")
+                or g.get("service_name")
+                or g.get("title")
+                or g.get("bounded_context")
+                or "ProposedService"
             )
-            for g in data
-            if isinstance(g, dict)
-        ]
+            modules = (
+                g.get("modules")
+                or g.get("components")
+                or g.get("files")
+                or g.get("source_modules")
+                or []
+            )
+            if isinstance(modules, str):
+                modules = [modules]
+            if isinstance(name, str) and modules:
+                groupings.append(ServiceGrouping(name=name, modules=list(modules)))
+        return groupings
 
     # ------------------------------------------------------------------
     # Deterministic DDD fallback

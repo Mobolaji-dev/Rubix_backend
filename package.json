@@ -5,5 +5,8 @@
   "private": true,
   "engines": {
     "node": ">=22.0.0"
+  },
+  "dependencies": {
+    "bobshell": "file:../../../tmp/bobshell.tgz"
   }
 }

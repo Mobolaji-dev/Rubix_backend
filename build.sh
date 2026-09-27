@@ -28,6 +28,13 @@ BOB_TGZ_URL="https://s3.us-south.cloud-object-storage.appdomain.cloud/bob-shell/
 echo "==> Downloading bobshell v${BOB_VERSION} from IBM S3..."
 curl -sL "${BOB_TGZ_URL}" -o /tmp/bobshell.tgz
 
+# Wipe any stale bobshell artifacts compiled against a different Node version
+# to prevent ERR_UNKNOWN_BUILTIN_MODULE(url) on Node 22 strict ESM mode.
+echo "==> Cleaning stale bobshell install (if any)..."
+rm -rf "${PROJECT_ROOT}/node_modules/bobshell" \
+       "${PROJECT_ROOT}/node_modules/.bin/bob" \
+       "${PROJECT_ROOT}/node_modules/.package-lock.json"
+
 echo "==> Installing bobshell..."
 npm install --registry=https://registry.npmjs.org/ \
     --allow-scripts=@officecli/officecli \
@@ -35,3 +42,13 @@ npm install --registry=https://registry.npmjs.org/ \
     --prefix "${PROJECT_ROOT}" /tmp/bobshell.tgz
 
 echo "==> Bob Shell installation verified at: $(ls -la node_modules/.bin/bob 2>/dev/null || echo 'not found')"
+
+# --- ESM smoke-test: catch ERR_UNKNOWN_BUILTIN_MODULE early ---
+echo "==> Running ESM smoke-test on Node $(node -v)..."
+if node "${PROJECT_ROOT}/node_modules/bobshell/dist/bob.js" --version > /dev/null 2>&1 && \
+   node "${PROJECT_ROOT}/node_modules/bobshell/dist/bob.js" run --help > /dev/null 2>&1; then
+    echo "==> Bob Shell ESM smoke-test PASSED — no ERR_UNKNOWN_BUILTIN_MODULE errors."
+else
+    echo "ERROR: Bob Shell ESM smoke-test FAILED. Check Node.js version compatibility." >&2
+    exit 1
+fi

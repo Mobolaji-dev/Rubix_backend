@@ -23,3 +23,6 @@ env/
 # Temp & session files
 .tmp/
 bob_sessions/
+node_modules/
+package-lock.json
+.node22/

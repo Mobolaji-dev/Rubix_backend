@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+.pytest_cache/
+.cache/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Env & secrets
+.env
+
+# Dev artifacts
+.tmp/
+bob_sessions/
+.node22/
+/tmp/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
