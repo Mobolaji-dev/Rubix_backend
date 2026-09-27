@@ -43,6 +43,24 @@ class Settings:
         for path in candidates:
             if os.path.isfile(path) and os.access(path, os.X_OK):
                 return path
+
+        # Auto-install bobshell if npm is available in production environment
+        npm_bin = shutil.which("npm")
+        if npm_bin:
+            try:
+                import subprocess
+                target_dir = os.path.join(home, ".local")
+                subprocess.run(
+                    [npm_bin, "install", "--prefix", target_dir, "bobshell"],
+                    capture_output=True,
+                    timeout=60,
+                )
+                target = os.path.join(target_dir, "node_modules", ".bin", "bob")
+                if os.path.isfile(target) and os.access(target, os.X_OK):
+                    return target
+            except Exception:
+                pass
+
         return None
 
     @property
