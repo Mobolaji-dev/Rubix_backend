@@ -1,0 +1,9 @@
+{
+  "name": "rubix-backend",
+  "version": "1.0.0",
+  "description": "IBM Bob Shell CLI dependency for Rubix production backend",
+  "private": true,
+  "dependencies": {
+    "bobshell": "latest"
+  }
+}

@@ -1,17 +1,23 @@
-FROM node:20-slim AS node_base
 FROM python:3.12-slim
-
-# Copy Node.js binary and npm from node_base
-COPY --from=node_base /usr/local/bin/node /usr/local/bin/node
-COPY --from=node_base /usr/local/lib/node_modules /usr/local/lib/node_modules
-COPY --from=node_base /usr/local/bin/npm /usr/local/bin/npm
-COPY --from=node_base /usr/local/bin/npx /usr/local/bin/npx
 
 WORKDIR /app
 
-# Install git and global bobshell CLI package
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
-RUN npm install -g bobshell
+# Install system dependencies: git, curl, node, npm
+RUN apt-get update && \
+    apt-get install -y git curl && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
+# Download and install IBM Bob Shell from IBM's official S3 source
+RUN BOB_VERSION=$(curl -sf https://s3.us-south.cloud-object-storage.appdomain.cloud/bob-shell/bobshell2-version.txt || echo "2.0.5") && \
+    echo "Installing bobshell v${BOB_VERSION}..." && \
+    curl -sL "https://s3.us-south.cloud-object-storage.appdomain.cloud/bob-shell/bobshell-${BOB_VERSION}.tgz" -o /tmp/bobshell.tgz && \
+    npm install --registry=https://registry.npmjs.org/ \
+        --allow-scripts=@officecli/officecli \
+        --progress=false --loglevel=error \
+        -g /tmp/bobshell.tgz && \
+    echo "Bob Shell installed at: $(which bob || echo 'NOT FOUND')"
 
 # Install Python dependencies
 COPY requirements.txt .

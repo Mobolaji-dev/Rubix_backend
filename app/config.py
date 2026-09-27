@@ -26,26 +26,35 @@ class Settings:
     def bob_bin(self) -> str | None:
         """
         Locate the `bob` binary.
-        Checks PATH first, then common user-local install locations.
+        Checks PATH first, then common install locations including project-local node_modules.
         """
         found = shutil.which("bob")
         if found:
             return found
 
-        # Bob Shell is often installed to ~/.local/node_modules/.bin (user npm prefix)
         home = os.path.expanduser("~")
+        # Resolve project root (one level up from app/) for local node_modules installed by build.sh
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
         candidates = [
+            # Project-local install (build.sh installs here: npm install --prefix <project_root>)
+            os.path.join(project_root, "node_modules", ".bin", "bob"),
+            # User-local prefix installs
             os.path.join(home, ".local", "node_modules", ".bin", "bob"),
             os.path.join(home, ".local", "bin", "bob"),
             os.path.join(home, ".npm-global", "bin", "bob"),
+            # Global installs
             "/usr/local/bin/bob",
+            "/usr/bin/bob",
         ]
         for path in candidates:
             if os.path.isfile(path) and os.access(path, os.X_OK):
                 return path
 
+        # Fallback: invoke via node entrypoint directly
         node_bin = shutil.which("node")
         js_candidates = [
+            os.path.join(project_root, "node_modules", "bobshell", "dist", "bob.js"),
             os.path.join(home, ".local", "node_modules", "bobshell", "dist", "bob.js"),
             "/tmp/node_modules/bobshell/dist/bob.js",
         ]
@@ -54,14 +63,24 @@ class Settings:
                 if os.path.isfile(jsc):
                     return f"{node_bin} {jsc}"
 
-        # Auto-install bobshell if npm is available in production environment
+        # Last resort: runtime auto-install from IBM S3
         npm_bin = shutil.which("npm")
         if npm_bin:
-            for target_dir in [os.path.join(home, ".local"), "/tmp"]:
+            for target_dir in [project_root, os.path.join(home, ".local"), "/tmp"]:
                 try:
                     import subprocess
+                    import urllib.request
+                    bob_version_url = "https://s3.us-south.cloud-object-storage.appdomain.cloud/bob-shell/bobshell2-version.txt"
+                    with urllib.request.urlopen(bob_version_url, timeout=10) as r:
+                        version = r.read().decode().strip()
+                    tgz_url = f"https://s3.us-south.cloud-object-storage.appdomain.cloud/bob-shell/bobshell-{version}.tgz"
+                    tgz_path = "/tmp/bobshell-runtime.tgz"
+                    urllib.request.urlretrieve(tgz_url, tgz_path)
                     subprocess.run(
-                        [npm_bin, "install", "--prefix", target_dir, "bobshell"],
+                        [npm_bin, "install", "--registry=https://registry.npmjs.org/",
+                         "--allow-scripts=@officecli/officecli",
+                         "--progress=false", "--loglevel=error",
+                         "--prefix", target_dir, tgz_path],
                         capture_output=True,
                         timeout=90,
                     )
