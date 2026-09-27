@@ -82,13 +82,30 @@ async def get_result(job_id: str):
 
 
 # ---------------------------------------------------------------------------
+def _clean_directory(dir_path: str) -> None:
+    """Safely empties a directory without deleting the root folder itself."""
+    if os.path.exists(dir_path):
+        for item in os.listdir(dir_path):
+            item_path = os.path.join(dir_path, item)
+            if os.path.isdir(item_path):
+                shutil.rmtree(item_path, ignore_errors=True)
+            else:
+                try:
+                    os.remove(item_path)
+                except Exception:
+                    pass
+
+
 def _get_temp_parent_dir() -> str:
-    """Finds the first available writable directory for temporary repository clones."""
+    """
+    Finds the first available writable directory for temporary repository clones.
+    Prioritizes local disk space (.tmp) over system RAM-backed /tmp (tmpfs).
+    """
     candidates = [
+        os.path.join(os.getcwd(), ".tmp"),
+        "/var/tmp",
         tempfile.gettempdir(),
         "/tmp",
-        "/var/tmp",
-        os.path.join(os.getcwd(), ".tmp"),
     ]
     for path in candidates:
         try:
@@ -163,10 +180,12 @@ import zipfile
 
 async def _clone_repo(repo_url: str, repo_ref: str, target_dir: str) -> None:
     """
-    Attempts git clone first. If git is missing (Errno 2) or fails,
+    Attempts git clone first. If git is missing or fails,
     falls back to downloading and extracting GitHub repository zipball via pure Python.
+    Cleans target_dir before each attempt so git never complains about non-empty destination.
     """
     try:
+        _clean_directory(target_dir)
         proc = await asyncio.create_subprocess_exec(
             "git", "clone", "--depth=1", "--branch", repo_ref, repo_url, target_dir,
             stdout=asyncio.subprocess.PIPE,
@@ -176,6 +195,7 @@ async def _clone_repo(repo_url: str, repo_ref: str, target_dir: str) -> None:
         if proc.returncode == 0:
             return
 
+        _clean_directory(target_dir)
         proc2 = await asyncio.create_subprocess_exec(
             "git", "clone", "--depth=1", repo_url, target_dir,
             stdout=asyncio.subprocess.PIPE,
@@ -188,8 +208,16 @@ async def _clone_repo(repo_url: str, repo_ref: str, target_dir: str) -> None:
         pass
 
     # Fallback: Pure Python GitHub Zip download
+    _clean_directory(target_dir)
     await _download_github_zip(repo_url, repo_ref, target_dir)
 
+
+_SKIP_EXTENSIONS = {
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico",
+    ".mp4", ".mov", ".avi", ".mp3", ".pdf", ".zip", ".gz", ".tar",
+    ".woff", ".woff2", ".ttf", ".eot", ".wasm", ".so", ".dylib",
+    ".dll", ".exe", ".bin", ".pyc", ".pyo", ".db", ".sqlite"
+}
 
 def _download_github_zip_sync(repo_url: str, repo_ref: str, target_dir: str) -> None:
     clean_url = repo_url.rstrip("/").removesuffix(".git")
@@ -217,7 +245,7 @@ def _download_github_zip_sync(repo_url: str, repo_ref: str, target_dir: str) -> 
     for zip_url in urls_to_try:
         try:
             req = urllib.request.Request(zip_url, headers=headers)
-            with urllib.request.urlopen(req, timeout=20) as resp:
+            with urllib.request.urlopen(req, timeout=25) as resp:
                 if resp.status == 200:
                     downloaded_bytes = resp.read()
                     break
@@ -237,9 +265,11 @@ def _download_github_zip_sync(repo_url: str, repo_ref: str, target_dir: str) -> 
 
         root_folder = namelist[0].split("/")[0]
         for member in zf.infolist():
-            # Strip root folder prefix
             rel_path = member.filename[len(root_folder) + 1 :]
             if not rel_path:
+                continue
+            ext = os.path.splitext(rel_path)[1].lower()
+            if ext in _SKIP_EXTENSIONS:
                 continue
             dest_path = os.path.join(target_dir, rel_path)
             if member.is_dir():
