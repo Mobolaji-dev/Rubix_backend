@@ -320,7 +320,7 @@ const DOC_SECTIONS = [
             <tbody>
               <tr>
                 <td><strong>Use of IBM Bob 2.0</strong></td>
-                <td>Leverages IBM Bob 2.0 API (<code>app/engine/bob_client.py</code>) for whole-repository context reasoning and IBM Bob IDE in local workspace.</td>
+                <td>Drives official <strong>IBM Bob 2.0 Shell CLI</strong> (<code>bob run</code>) as an async subprocess for whole-repository context reasoning and Bounded Context grouping. Logs token consumption and cost per run.</td>
               </tr>
               <tr>
                 <td><strong>Technical Complexity</strong></td>
