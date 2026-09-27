@@ -19,7 +19,7 @@ export default function AppNav({ currentView, onNavigate }) {
         </a>
 
         <nav className="site-nav" aria-label="Main navigation">
-          {['Overview', 'Security', 'Docs', 'Pricing'].map((item) => (
+          {['Docs'].map((item) => (
             <a
               key={item}
               href="#"
