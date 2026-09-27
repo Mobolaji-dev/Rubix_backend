@@ -4,7 +4,7 @@ import CubeAnimation from '../components/CubeAnimation'
 import StepStatus from '../components/StepStatus'
 import useAnalysis from '../hooks/useAnalysis'
 
-export default function ProcessingPage({ jobId, onComplete, onBack }) {
+export default function ProcessingPage({ jobId, onComplete, onBack, onNavigate }) {
   const { pollJob, status, result, error, loading } = useAnalysis()
 
   useEffect(() => {
@@ -26,7 +26,7 @@ export default function ProcessingPage({ jobId, onComplete, onBack }) {
   if (status?.status === 'failed' || error) {
     return (
       <div className="app-shell processing-shell">
-        <AppNav />
+        <AppNav currentView="processing" onNavigate={onNavigate} />
 
         <main className="container processing-main" aria-labelledby="processing-error-title">
           <section className="processing-panel processing-panel--error">
@@ -44,7 +44,7 @@ export default function ProcessingPage({ jobId, onComplete, onBack }) {
 
   return (
     <div className="app-shell processing-shell">
-      <AppNav />
+      <AppNav currentView="processing" onNavigate={onNavigate} />
 
       <main className="container processing-main" aria-labelledby="processing-title">
         <section className="processing-panel">

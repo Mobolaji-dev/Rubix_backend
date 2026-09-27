@@ -102,18 +102,17 @@ function CoverageBanner({ unassignedModulesCount }) {
   )
 }
 
-export default function ResultsPage({ result, logs, onNewAnalysis }) {
+export default function ResultsPage({ result, logs, jobId, onNewAnalysis, onNavigate }) {
   const [showLogs, setShowLogs] = useState(false)
 
   const services = Array.isArray(result?.services) ? result.services : []
   const summary = result?.summary || {}
   const totalModules = summary.total_modules ?? 0
   const unassignedModulesCount = Array.isArray(summary.unassigned_modules) ? summary.unassigned_modules.length : 0
-  const hasLogs = Array.isArray(logs) && logs.length > 0
 
   return (
     <div className="results-shell">
-      <AppNav />
+      <AppNav currentView="results" onNavigate={onNavigate} />
 
       {showLogs && <LogsModal logs={logs} onClose={() => setShowLogs(false)} />}
 

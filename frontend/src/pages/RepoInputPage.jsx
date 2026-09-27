@@ -1,10 +1,10 @@
 import RepoInputForm from '../components/RepoInputForm'
 import AppNav from '../components/AppNav'
 
-export default function RepoInputPage({ onSubmit }) {
+export default function RepoInputPage({ onSubmit, onNavigate }) {
   return (
     <div className="app-shell">
-      <AppNav />
+      <AppNav currentView="input" onNavigate={onNavigate} />
 
       <main className="container page-main">
         <section className="panel hero-panel" aria-labelledby="repo-input-title">

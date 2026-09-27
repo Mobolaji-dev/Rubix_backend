@@ -1,10 +1,17 @@
-const navItems = ['Overview', 'Security', 'Docs', 'Pricing']
+export default function AppNav({ currentView, onNavigate }) {
+  const handleNavClick = (e, item) => {
+    e.preventDefault()
+    if (item === 'Docs' || item === 'Security' || item === 'Pricing') {
+      if (typeof onNavigate === 'function') onNavigate('docs')
+    } else if (item === 'Overview' || item === 'Home') {
+      if (typeof onNavigate === 'function') onNavigate('input')
+    }
+  }
 
-export default function AppNav() {
   return (
     <header className="topbar">
       <div className="container topbar-inner">
-        <a className="brand" href="/" aria-label="Rubix home">
+        <a className="brand" href="#" onClick={(e) => { e.preventDefault(); if (onNavigate) onNavigate('input') }} aria-label="Rubix home">
           <img src="/logo.svg" alt="Rubix logo" className="brand-logo" />
           <span className="brand-copy">
             <span className="brand-name">rubix</span>
@@ -12,8 +19,13 @@ export default function AppNav() {
         </a>
 
         <nav className="site-nav" aria-label="Main navigation">
-          {navItems.map((item) => (
-            <a key={item} href="#" className="nav-item">
+          {['Overview', 'Security', 'Docs', 'Pricing'].map((item) => (
+            <a
+              key={item}
+              href="#"
+              onClick={(e) => handleNavClick(e, item)}
+              className={`nav-item ${item === 'Docs' && currentView === 'docs' ? 'nav-item--active' : ''}`}
+            >
               {item}
             </a>
           ))}
