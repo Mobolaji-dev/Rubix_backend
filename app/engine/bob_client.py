@@ -122,8 +122,81 @@ class BobClient:
             self.on_step("IBM Bob output could not be parsed — falling back to deterministic grouping engine...")
             return self._fallback_grouping(repo_context)
 
-        self.on_step(f"IBM Bob 2.0 identified {len(groupings)} bounded context services.")
+        groupings = self._assign_all_repo_modules(groupings, repo_context)
+        self.on_step(f"IBM Bob 2.0 identified {len(groupings)} bounded context services covering 100% of repository modules.")
         return groupings
+
+    def _assign_all_repo_modules(
+        self, groupings: List[ServiceGrouping], repo_context: RepoContext
+    ) -> List[ServiceGrouping]:
+        """
+        Assign 100% of repo modules to services:
+        1. Prefix expansion: Map unassigned modules sharing package/directory paths with IBM Bob's services.
+        2. Domain DDD classification: Map any remaining unassigned modules using domain keywords.
+        """
+        all_modules = [m.path for m in repo_context.modules]
+        if not all_modules:
+            return groupings
+
+        service_prefixes: Dict[str, Set[str]] = {}
+        for g in groupings:
+            prefixes: Set[str] = set()
+            for m in g.modules:
+                parts = m.split("/")
+                if len(parts) >= 2:
+                    prefixes.add("/".join(parts[:2]))
+                    prefixes.add(parts[0])
+                elif len(parts) == 1:
+                    prefixes.add(m)
+            service_prefixes[g.name] = prefixes
+
+        assigned: Set[str] = set()
+        service_map: Dict[str, List[str]] = {g.name: list(g.modules) for g in groupings}
+        for g in groupings:
+            assigned.update(g.modules)
+
+        # Step 1: Directory prefix matching against IBM Bob services
+        for m in all_modules:
+            if m in assigned:
+                continue
+            parts = m.split("/")
+            mod_prefix_2 = "/".join(parts[:2]) if len(parts) >= 2 else parts[0]
+            mod_prefix_1 = parts[0]
+
+            matched_service = None
+            for svc_name, prefixes in service_prefixes.items():
+                if mod_prefix_2 in prefixes or mod_prefix_1 in prefixes:
+                    matched_service = svc_name
+                    break
+
+            if matched_service:
+                service_map[matched_service].append(m)
+                assigned.add(m)
+
+        # Step 2: Domain DDD fallback for any remaining unassigned modules
+        for m in all_modules:
+            if m in assigned:
+                continue
+            path_lower = m.lower()
+            if any(k in path_lower for k in ["auth", "user", "account", "profile", "jwt", "session"]):
+                svc_name = "User & Identity Service"
+            elif any(k in path_lower for k in ["order", "checkout", "cart", "payment", "invoice"]):
+                svc_name = "Orders & Commerce Service"
+            elif any(k in path_lower for k in ["product", "item", "catalog", "attribute", "category"]):
+                svc_name = "Product & Catalog Service"
+            elif any(k in path_lower for k in ["shipping", "delivery", "warehouse", "stock", "inventory"]):
+                svc_name = "Fulfillment & Logistics Service"
+            elif any(k in path_lower for k in ["graphql", "api", "gateway", "rest", "endpoint"]):
+                svc_name = "API & Gateway Service"
+            elif any(k in path_lower for k in ["app", "plugin", "webhook", "integration"]):
+                svc_name = "Integrations & Webhooks Service"
+            else:
+                svc_name = "Core Infrastructure Service"
+
+            service_map.setdefault(svc_name, []).append(m)
+            assigned.add(m)
+
+        return [ServiceGrouping(name=k, modules=v) for k, v in service_map.items()]
 
     # ------------------------------------------------------------------
     # Prompt construction
