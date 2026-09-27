@@ -65,14 +65,10 @@ class BobClient:
     async def _run_bob_shell(
         self, bob_bin: str, repo_context: RepoContext
     ) -> List[ServiceGrouping]:
-        """Invoke `bob run` non-interactively and parse the JSON response."""
+        """Invoke `bob run` in multi-pass batches to decompose the full repository."""
 
         self.on_step("Step 1/4 [Event Storming]: IBM Bob 2.0 analyzing domain events & commands across full repo...")
         self.on_step("Step 2/4 [Bounded Contexts]: IBM Bob 2.0 grouping modules into domain microservices...")
-        self.on_step("Step 3/4 [Coupling Audit]: IBM Bob 2.0 auditing in-memory vs network boundaries...")
-        self.on_step("Step 4/4 [Extraction Ranking]: IBM Bob 2.0 formatting final service candidate breakdown...")
-
-        prompt = self._build_bob_prompt(repo_context)
 
         env = os.environ.copy()
         env["BOB_API_KEY"] = self.api_key
@@ -90,41 +86,87 @@ class BobClient:
             except Exception:
                 pass
 
-        cmd = bob_bin.split() + ["run", "--accept-license", "--trust", prompt]
+        # Pass 1: Representative Multi-Directory Pass across all repo packages
+        prompt_1 = self._build_bob_prompt(repo_context)
+        cmd_1 = bob_bin.split() + ["run", "--accept-license", "--trust", prompt_1]
 
         try:
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
+            proc_1 = await asyncio.create_subprocess_exec(
+                *cmd_1,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=env,
             )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120.0)
-        except asyncio.TimeoutError:
-            self.on_step("IBM Bob timed out after 120s — falling back to deterministic grouping engine...")
-            return self._fallback_grouping(repo_context)
+            stdout_1, stderr_1 = await asyncio.wait_for(proc_1.communicate(), timeout=90.0)
+            output_1 = stdout_1.decode("utf-8", errors="replace").strip()
+            groupings = self._parse_bob_output(output_1) if proc_1.returncode == 0 and output_1 else []
         except Exception as err:
-            self.on_step(f"IBM Bob Shell error ({err}) — falling back to deterministic grouping engine...")
+            self.on_step(f"IBM Bob primary pass error ({err}) — falling back to deterministic grouping engine...")
             return self._fallback_grouping(repo_context)
 
-        output = stdout.decode("utf-8", errors="replace").strip()
-
-        if proc.returncode != 0 or not output:
-            stderr_msg = stderr.decode("utf-8", errors="replace").strip()
-            self.on_step(
-                f"IBM Bob Shell exited with code {proc.returncode} — "
-                f"falling back to deterministic grouping engine... ({stderr_msg[:120]})"
-            )
-            return self._fallback_grouping(repo_context)
-
-        groupings = self._parse_bob_output(output)
         if not groupings:
-            self.on_step("IBM Bob output could not be parsed — falling back to deterministic grouping engine...")
+            self.on_step("IBM Bob primary pass returned no groupings — falling back to deterministic grouping engine...")
             return self._fallback_grouping(repo_context)
 
+        # Pass 2+: Batched IBM Bob Analysis for remaining unassigned modules
+        all_module_paths = [m.path for m in repo_context.modules]
+        assigned_so_far = {m for g in groupings for m in g.modules}
+        unassigned_remaining = [m for m in all_module_paths if m not in assigned_so_far]
+
+        # Chunk unassigned remaining into batches of 150 modules
+        batch_size = 150
+        max_batches = 4
+        batches = [unassigned_remaining[i:i + batch_size] for i in range(0, len(unassigned_remaining), batch_size)][:max_batches]
+
+        if batches:
+            self.on_step(f"Step 3/4 [Coupling Audit]: IBM Bob 2.0 classifying {len(unassigned_remaining)} remaining modules across {len(batches)} batches...")
+            for idx, batch in enumerate(batches, start=1):
+                try:
+                    batch_prompt = self._build_bob_batch_prompt(
+                        batch, groupings, repo_context.repo_url, idx, len(batches)
+                    )
+                    batch_cmd = bob_bin.split() + ["run", "--accept-license", "--trust", batch_prompt]
+                    proc_b = await asyncio.create_subprocess_exec(
+                        *batch_cmd,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        env=env,
+                    )
+                    stdout_b, _ = await asyncio.wait_for(proc_b.communicate(), timeout=45.0)
+                    out_b = stdout_b.decode("utf-8", errors="replace").strip()
+                    batch_groupings = self._parse_bob_output(out_b) if proc_b.returncode == 0 and out_b else []
+                    if batch_groupings:
+                        groupings = self._merge_groupings(groupings, batch_groupings)
+                except Exception:
+                    pass
+
+        self.on_step("Step 4/4 [Extraction Ranking]: IBM Bob 2.0 formatting final service candidate breakdown...")
+
+        # Final 100% module assignment
         groupings = self._assign_all_repo_modules(groupings, repo_context)
         self.on_step(f"IBM Bob 2.0 identified {len(groupings)} bounded context services covering 100% of repository modules.")
         return groupings
+
+    def _merge_groupings(
+        self, main_groupings: List[ServiceGrouping], batch_groupings: List[ServiceGrouping]
+    ) -> List[ServiceGrouping]:
+        """Merge new batch classification results into existing IBM Bob services."""
+        svc_map: Dict[str, List[str]] = {g.name: list(g.modules) for g in main_groupings}
+        existing_assigned = {m for g in main_groupings for m in g.modules}
+
+        for bg in batch_groupings:
+            target_name = bg.name
+            for ex_name in svc_map:
+                if ex_name.lower() == target_name.lower() or ex_name in target_name or target_name in ex_name:
+                    target_name = ex_name
+                    break
+
+            for m in bg.modules:
+                if m not in existing_assigned:
+                    svc_map.setdefault(target_name, []).append(m)
+                    existing_assigned.add(m)
+
+        return [ServiceGrouping(name=k, modules=v) for k, v in svc_map.items()]
 
     def _assign_all_repo_modules(
         self, groupings: List[ServiceGrouping], repo_context: RepoContext
@@ -198,13 +240,32 @@ class BobClient:
 
         return [ServiceGrouping(name=k, modules=v) for k, v in service_map.items()]
 
-    # ------------------------------------------------------------------
-    # Prompt construction
-    # ------------------------------------------------------------------
+    def _sample_representative_modules(self, repo_modules: List[Any], max_limit: int = 180) -> List[str]:
+        """Sample representative modules spanning every directory/package in the repository."""
+        from collections import defaultdict
+        all_paths = [m.path if hasattr(m, "path") else str(m) for m in repo_modules]
+        dir_map = defaultdict(list)
+        for path in all_paths:
+            parts = path.split("/")
+            dir_path = "/".join(parts[:-1]) if len(parts) > 1 else ""
+            dir_map[dir_path].append(path)
+
+        sampled: List[str] = []
+        for dir_path, files in sorted(dir_map.items()):
+            sampled.extend(files[:2])
+            if len(sampled) >= max_limit:
+                break
+
+        if len(sampled) < max_limit:
+            sampled_set = set(sampled)
+            remaining = [p for p in all_paths if p not in sampled_set]
+            sampled.extend(remaining[: max_limit - len(sampled)])
+
+        return sampled
 
     def _build_bob_prompt(self, repo_context: RepoContext) -> str:
-        """Build the single-pass DDD decomposition prompt for Bob Shell."""
-        modules = [m.path for m in repo_context.modules[:_BOB_MODULE_LIMIT]]
+        """Build the representative DDD decomposition prompt for Bob Shell across all repo directories."""
+        modules = self._sample_representative_modules(repo_context.modules, max_limit=180)
         module_list = json.dumps(modules, indent=2)
 
         return (
@@ -212,11 +273,35 @@ class BobClient:
             f"Domain-Driven Design (DDD).\n\n"
             f"Repository: {repo_context.repo_url}\n"
             f"Total modules parsed: {repo_context.total_module_count}\n\n"
-            f"Source modules (first {len(modules)}):\n{module_list}\n\n"
+            f"Representative source modules across all repository packages:\n{module_list}\n\n"
             f"Task: Analyze these source modules and group them into cohesive, domain-aligned microservices "
             f"using Event Storming and Bounded Context identification.\n\n"
             f"Return ONLY a valid JSON array (no markdown, no prose) matching this exact structure:\n"
             f'[{{"name": "ServiceName", "modules": ["relative/path/1.py", "relative/path/2.py"]}}]'
+        )
+
+    def _build_bob_batch_prompt(
+        self,
+        batch_modules: List[str],
+        existing_services: List[ServiceGrouping],
+        repo_url: str,
+        batch_num: int,
+        total_batches: int,
+    ) -> str:
+        """Build a batch classification prompt for IBM Bob to assign batch modules to bounded contexts."""
+        existing_names = [g.name for g in existing_services]
+        module_list = json.dumps(batch_modules, indent=2)
+
+        return (
+            f"You are an expert software architect specializing in microservice decomposition using DDD.\n\n"
+            f"Repository: {repo_url}\n"
+            f"Batch {batch_num} of {total_batches} ({len(batch_modules)} modules)\n\n"
+            f"Existing Bounded Context Services:\n{json.dumps(existing_names, indent=2)}\n\n"
+            f"Batch source modules to classify:\n{module_list}\n\n"
+            f"Task: Classify and group these batch source modules into the existing microservices "
+            f"or define new microservices if needed.\n\n"
+            f"Return ONLY a valid JSON array matching this exact structure:\n"
+            f'[{{"name": "ServiceName", "modules": ["relative/path/1.py"]}}]'
         )
 
     # ------------------------------------------------------------------
