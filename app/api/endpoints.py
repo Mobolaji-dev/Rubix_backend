@@ -82,8 +82,30 @@ async def get_result(job_id: str):
 
 
 # ---------------------------------------------------------------------------
-# Background tasks & Pipeline execution
-# ---------------------------------------------------------------------------
+def _get_temp_parent_dir() -> str:
+    """Finds the first available writable directory for temporary repository clones."""
+    candidates = [
+        tempfile.gettempdir(),
+        "/tmp",
+        "/var/tmp",
+        os.path.join(os.getcwd(), ".tmp"),
+    ]
+    for path in candidates:
+        try:
+            test_dir = os.path.join(path, ".rubix_write_test")
+            os.makedirs(test_dir, exist_ok=True)
+            test_file = os.path.join(test_dir, "test.txt")
+            with open(test_file, "w") as f:
+                f.write("ok")
+            os.remove(test_file)
+            os.rmdir(test_dir)
+            return path
+        except Exception:
+            continue
+    return tempfile.gettempdir()
+
+
+import shutil
 
 async def _run_analysis_pipeline(job_id: str, repo_url: str, repo_ref: str) -> None:
     """
@@ -95,10 +117,14 @@ async def _run_analysis_pipeline(job_id: str, repo_url: str, repo_ref: str) -> N
     """
     try:
         job_store.update_step(job_id, "Fetching repository source code...", 10)
-        tmp_parent = os.path.join(os.getcwd(), ".tmp")
-        os.makedirs(tmp_parent, exist_ok=True)
-        with tempfile.TemporaryDirectory(dir=tmp_parent) as tmp_dir:
+        temp_parent = _get_temp_parent_dir()
+        with tempfile.TemporaryDirectory(dir=temp_parent) as tmp_dir:
             await _clone_repo(repo_url, repo_ref, tmp_dir)
+
+            # Strip heavy .git history immediately to minimize disk & RAM footprint
+            git_dir = os.path.join(tmp_dir, ".git")
+            if os.path.exists(git_dir):
+                shutil.rmtree(git_dir, ignore_errors=True)
 
             initial_state: DecompositionState = {
                 "job_id": job_id,
