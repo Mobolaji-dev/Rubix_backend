@@ -27,7 +27,9 @@ RUN BOB_VERSION=$(curl -sf https://s3.us-south.cloud-object-storage.appdomain.cl
         --progress=false --loglevel=error \
         --prefix /app /tmp/bobshell.tgz && \
     echo "Bob Shell installed at: $(ls -la /app/node_modules/.bin/bob || echo 'NOT FOUND')" && \
-    node /app/node_modules/bobshell/dist/bob.js --version
+    node /app/node_modules/bobshell/dist/bob.js --version && \
+    mkdir -p /root/.bob/settings /root/.bob/db /root/.bob/dev-db /root/.bob/sessions /tmp/.bob/settings /tmp/.bob/db /tmp/.bob/dev-db /tmp/.bob/sessions && \
+    chmod -R 777 /root/.bob /tmp/.bob
 
 EXPOSE 8000
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

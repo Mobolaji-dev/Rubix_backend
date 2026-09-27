@@ -77,6 +77,19 @@ class BobClient:
         env = os.environ.copy()
         env["BOB_API_KEY"] = self.api_key
 
+        # Ensure a writeable HOME directory and .bob state folders exist
+        home_dir = env.get("HOME")
+        if not home_dir or not os.access(home_dir, os.W_OK):
+            home_dir = "/tmp"
+
+        env["HOME"] = home_dir
+        bob_home = Path(home_dir) / ".bob"
+        for sub in ["", "db", "dev-db", "settings", "sessions", "cache"]:
+            try:
+                (bob_home / sub).mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pass
+
         cmd = bob_bin.split() + ["run", "--accept-license", "--trust", prompt]
 
         try:
