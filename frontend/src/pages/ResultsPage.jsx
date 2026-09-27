@@ -109,6 +109,7 @@ export default function ResultsPage({ result, logs, jobId, onNewAnalysis, onNavi
   const summary = result?.summary || {}
   const totalModules = summary.total_modules ?? 0
   const unassignedModulesCount = Array.isArray(summary.unassigned_modules) ? summary.unassigned_modules.length : 0
+  const hasLogs = Array.isArray(logs) && logs.length > 0
 
   return (
     <div className="results-shell">
