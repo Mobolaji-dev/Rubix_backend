@@ -97,17 +97,17 @@ def _clean_directory(dir_path: str) -> None:
 
 
 def _clean_stale_temp_dirs(parent_dir: str) -> None:
-    """Removes leftover tmp directories older than 5 minutes to reclaim disk space."""
+    """Removes leftover tmp directories immediately to reclaim disk space."""
     if not os.path.exists(parent_dir):
         return
     now = time.time()
     try:
         for entry in os.listdir(parent_dir):
-            if entry.startswith("tmp") or entry.startswith(".rubix") or "saleor" in entry:
+            if entry.startswith("tmp") or entry.startswith(".rubix") or entry.startswith("bobshell") or "saleor" in entry:
                 full_path = os.path.join(parent_dir, entry)
                 try:
                     mtime = os.path.getmtime(full_path)
-                    if now - mtime > 300:  # older than 5 minutes
+                    if now - mtime > 15:
                         if os.path.isdir(full_path):
                             shutil.rmtree(full_path, ignore_errors=True)
                         else:
@@ -160,15 +160,19 @@ import shutil
 import time
 
 def _prune_non_code_files(target_dir: str) -> None:
-    """Prunes heavy non-code assets (images, videos, pdfs, node_modules) to save disk space."""
+    """Prunes heavy non-code assets and non-domain directories to minimize disk footprint."""
     skip_exts = {
         ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico",
         ".mp4", ".mov", ".avi", ".mp3", ".pdf", ".zip", ".gz", ".tar",
         ".woff", ".woff2", ".ttf", ".eot", ".wasm", ".so", ".dylib",
         ".dll", ".exe", ".bin", ".pyc", ".pyo", ".db", ".sqlite", ".iso"
     }
+    skip_dirs = {
+        ".git", "node_modules", ".venv", "venv", "__pycache__", "build", "dist",
+        "docs", "media", "images", "fixtures", "assets", "examples", "website", "benchmark", "site-packages"
+    }
     for root, dirs, files in os.walk(target_dir, topdown=True):
-        dirs[:] = [d for d in dirs if d not in {".git", "node_modules", ".venv", "venv", "__pycache__", "build", "dist"}]
+        dirs[:] = [d for d in dirs if d.lower() not in skip_dirs]
         for f in files:
             ext = os.path.splitext(f)[1].lower()
             if ext in skip_exts:
@@ -187,6 +191,10 @@ async def _run_analysis_pipeline(job_id: str, repo_url: str, repo_ref: str) -> N
       4. Extraction Candidate Ranking (Rank services & construct AnalysisResult)
     """
     try:
+        # Aggressively reclaim disk space from previous job temp files
+        for cand in [os.path.join(os.getcwd(), ".tmp"), "/tmp", "/var/tmp", tempfile.gettempdir()]:
+            _clean_stale_temp_dirs(cand)
+
         job_store.update_step(job_id, "Fetching repository source code...", 10)
         temp_parent = _get_temp_parent_dir()
         with tempfile.TemporaryDirectory(dir=temp_parent) as tmp_dir:
