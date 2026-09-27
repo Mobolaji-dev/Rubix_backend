@@ -43,4 +43,4 @@ Rubix reduces this risk by combining static analysis, whole-repository reasoning
 
 ## Documentation status
 
-This documentation set is written to be deployable on GitHub Pages using a static site generator structure. The content retains the original project information while removing GitBook-specific syntax and making it suitable for a standard Markdown documentation site.
+This documentation set is ready for GitHub Pages deployment and retains the original Rubix project details in a clean Markdown format.

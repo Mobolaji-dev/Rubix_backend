@@ -94,7 +94,7 @@ flowchart TD
 
 ## Deployment note
 
-This documentation is written to be compatible with GitHub Pages. The content preserves the original Rubix project information while removing GitBook-specific syntax and frontmatter required by GitBook hosting.
+This documentation is prepared for static hosting on GitHub Pages and keeps the original Rubix project information while using standard Markdown structure.
 
 ## Summary
 
