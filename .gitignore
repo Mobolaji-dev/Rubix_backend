@@ -19,3 +19,7 @@ env/
 # IDE files
 .vscode/
 .idea/
+
+# Temp & session files
+.tmp/
+bob_sessions/

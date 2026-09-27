@@ -95,7 +95,9 @@ async def _run_analysis_pipeline(job_id: str, repo_url: str, repo_ref: str) -> N
     """
     try:
         job_store.update_step(job_id, "Fetching repository source code...", 10)
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_parent = os.path.join(os.getcwd(), ".tmp")
+        os.makedirs(tmp_parent, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=tmp_parent) as tmp_dir:
             await _clone_repo(repo_url, repo_ref, tmp_dir)
 
             initial_state: DecompositionState = {
