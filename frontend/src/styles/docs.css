@@ -1,5 +1,44 @@
 /* docs.css — Paystack-Inspired Pitch Black & Emerald Green Documentation Layout */
 
+.line-icon {
+  width: 1.15em;
+  height: 1.15em;
+  vertical-align: -0.15em;
+  stroke-width: 2.2;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.doc-title-icon {
+  width: 1.35em;
+  height: 1.35em;
+  color: #10b981;
+  margin-right: 0.35rem;
+  vertical-align: -0.2em;
+}
+
+.section-title-icon {
+  width: 1.1em;
+  height: 1.1em;
+  color: #10b981;
+  margin-right: 0.35rem;
+  vertical-align: -0.15em;
+}
+
+.link-icon-inline {
+  width: 1em;
+  height: 1em;
+  color: #10b981;
+  margin-right: 0.4rem;
+  vertical-align: -0.12em;
+}
+
+.docs-brand-icon {
+  width: 1.35em;
+  height: 1.35em;
+  color: #10b981;
+}
+
 .docs-shell {
   min-height: 100vh;
   background: #000000;
