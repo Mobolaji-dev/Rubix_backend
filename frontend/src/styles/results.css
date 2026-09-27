@@ -593,3 +593,107 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Header action group (View Logs + New Analysis side-by-side)         */
+/* ------------------------------------------------------------------ */
+.results-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* View Analysis Logs button — terminal-green ghost style */
+.button-logs {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: 0.5rem;
+  color: #10b981;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+  white-space: nowrap;
+}
+
+.button-logs:hover {
+  background: rgba(16, 185, 129, 0.18);
+  border-color: #10b981;
+  color: #6ee7b7;
+}
+
+.button-logs__icon {
+  font-size: 0.65rem;
+  opacity: 0.8;
+}
+
+/* ------------------------------------------------------------------ */
+/* Logs Modal — terminal / pipeline trace style                        */
+/* ------------------------------------------------------------------ */
+.logs-modal-content {
+  width: min(100%, 720px);
+}
+
+.logs-modal-body {
+  padding: 1.25rem 1.5rem;
+  max-height: 60vh;
+  background: #000000;
+}
+
+.logs-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.log-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  background: #09090b;
+  border: 1px solid #18181b;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8rem;
+  line-height: 1.55;
+  transition: border-color 100ms ease;
+}
+
+.log-entry:hover {
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.log-index {
+  flex-shrink: 0;
+  color: #10b981;
+  font-weight: 700;
+  font-size: 0.7rem;
+  margin-top: 0.15rem;
+  opacity: 0.75;
+  user-select: none;
+}
+
+.log-text {
+  color: #d4d4d8;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.logs-empty {
+  color: #71717a;
+  font-style: italic;
+  font-size: 0.875rem;
+  text-align: center;
+  padding: 2rem 0;
+  margin: 0;
+}
+

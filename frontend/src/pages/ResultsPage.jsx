@@ -1,8 +1,44 @@
+import { useState } from 'react'
 import AppNav from '../components/AppNav'
 import ResultServiceCard from '../components/ResultServiceCard'
 import '../styles/results.css'
 
-function DashboardHeader({ repoUrl, totalModules, unassignedModulesCount, onNewAnalysis }) {
+function LogsModal({ logs, onClose }) {
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="logs-modal-title" onClick={onClose}>
+      <div className="modal-content logs-modal-content" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <p className="card-kicker">Pipeline trace</p>
+            <h2 id="logs-modal-title" className="modal-title">Analysis Logs</h2>
+          </div>
+          <button type="button" className="modal-close" aria-label="Close logs" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="modal-body logs-modal-body custom-scrollbar">
+          {logs && logs.length > 0 ? (
+            <ol className="logs-list">
+              {logs.map((entry, i) => (
+                <li key={i} className="log-entry">
+                  <span className="log-index">{String(i + 1).padStart(2, '0')}</span>
+                  <span className="log-text">{entry}</span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="logs-empty">No logs were captured for this run.</p>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          <button type="button" className="button-secondary" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DashboardHeader({ repoUrl, totalModules, unassignedModulesCount, onNewAnalysis, onViewLogs, hasLogs }) {
   return (
     <>
       <header className="results-header">
@@ -11,9 +47,17 @@ function DashboardHeader({ repoUrl, totalModules, unassignedModulesCount, onNewA
           <h1 id="results-title">Boundary analysis results</h1>
         </div>
 
-        <button type="button" className="button-secondary" onClick={onNewAnalysis}>
-          Start a new analysis
-        </button>
+        <div className="results-header-actions">
+          {hasLogs && (
+            <button type="button" className="button-logs" onClick={onViewLogs}>
+              <span className="button-logs__icon">▶</span>
+              View analysis logs
+            </button>
+          )}
+          <button type="button" className="button-secondary" onClick={onNewAnalysis}>
+            Analyze a new repo
+          </button>
+        </div>
       </header>
 
       <section className="results-summary-row" aria-label="Repository summary">
@@ -58,15 +102,20 @@ function CoverageBanner({ unassignedModulesCount }) {
   )
 }
 
-export default function ResultsPage({ result, onNewAnalysis }) {
+export default function ResultsPage({ result, logs, onNewAnalysis }) {
+  const [showLogs, setShowLogs] = useState(false)
+
   const services = Array.isArray(result?.services) ? result.services : []
   const summary = result?.summary || {}
   const totalModules = summary.total_modules ?? 0
   const unassignedModulesCount = Array.isArray(summary.unassigned_modules) ? summary.unassigned_modules.length : 0
+  const hasLogs = Array.isArray(logs) && logs.length > 0
 
   return (
     <div className="results-shell">
       <AppNav />
+
+      {showLogs && <LogsModal logs={logs} onClose={() => setShowLogs(false)} />}
 
       <main className="results-main" aria-labelledby="results-title">
         <section className="results-panel">
@@ -75,6 +124,8 @@ export default function ResultsPage({ result, onNewAnalysis }) {
             totalModules={totalModules}
             unassignedModulesCount={unassignedModulesCount}
             onNewAnalysis={onNewAnalysis}
+            onViewLogs={() => setShowLogs(true)}
+            hasLogs={hasLogs}
           />
 
           <CoverageBanner unassignedModulesCount={unassignedModulesCount} />

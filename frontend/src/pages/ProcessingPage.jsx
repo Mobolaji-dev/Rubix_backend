@@ -17,7 +17,7 @@ export default function ProcessingPage({ jobId, onComplete, onBack }) {
 
   useEffect(() => {
     if (result && typeof onComplete === 'function') {
-      onComplete(result)
+      onComplete(result, status?.logs || [])
     }
   }, [result, onComplete])
 

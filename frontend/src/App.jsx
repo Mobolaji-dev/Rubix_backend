@@ -13,6 +13,7 @@ function App() {
   const [view, setView] = useState('input')
   const [jobId, setJobId] = useState(null)
   const [result, setResult] = useState(null)
+  const [analysisLogs, setAnalysisLogs] = useState([])
 
   const handleSubmit = async (repoUrl, repoRef = 'main') => {
     const response = await axios.post(`${API_BASE_URL}/analyze`, {
@@ -31,8 +32,9 @@ function App() {
     return nextJobId
   }
 
-  const handleProcessingComplete = (nextResult) => {
+  const handleProcessingComplete = (nextResult, logs) => {
     setResult(nextResult)
+    setAnalysisLogs(logs || [])
     setView('results')
   }
 
@@ -40,6 +42,7 @@ function App() {
     setView('input')
     setJobId(null)
     setResult(null)
+    setAnalysisLogs([])
   }
 
   return (
@@ -48,7 +51,7 @@ function App() {
       {view === 'processing' ? (
         <ProcessingPage jobId={jobId} onComplete={handleProcessingComplete} onBack={handleNewAnalysis} />
       ) : null}
-      {view === 'results' ? <ResultsPage result={result} onNewAnalysis={handleNewAnalysis} /> : null}
+      {view === 'results' ? <ResultsPage result={result} logs={analysisLogs} onNewAnalysis={handleNewAnalysis} /> : null}
       <AppFooter />
     </>
   )
