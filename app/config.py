@@ -26,19 +26,25 @@ class Settings:
     def bob_bin(self) -> str | None:
         """
         Locate the `bob` binary.
-        Checks PATH first, then common install locations including project-local node_modules.
+        Checks PATH first, then project-local node_modules and .node22 standalone environment.
         """
+        home = os.path.expanduser("~")
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+        node22_bin = os.path.join(project_root, ".node22", "bin")
+        if os.path.isdir(node22_bin):
+            if node22_bin not in os.environ.get("PATH", ""):
+                os.environ["PATH"] = f"{node22_bin}:{os.environ.get('PATH', '')}"
+
         found = shutil.which("bob")
         if found:
             return found
 
-        home = os.path.expanduser("~")
-        # Resolve project root (one level up from app/) for local node_modules installed by build.sh
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
         candidates = [
-            # Project-local install (build.sh installs here: npm install --prefix <project_root>)
+            # Project-local install (build.sh installs here)
             os.path.join(project_root, "node_modules", ".bin", "bob"),
+            # Node 22 bin folder
+            os.path.join(node22_bin, "bob"),
             # User-local prefix installs
             os.path.join(home, ".local", "node_modules", ".bin", "bob"),
             os.path.join(home, ".local", "bin", "bob"),
@@ -51,14 +57,14 @@ class Settings:
             if os.path.isfile(path) and os.access(path, os.X_OK):
                 return path
 
-        # Fallback: invoke via node entrypoint directly
-        node_bin = shutil.which("node")
+        # Fallback: invoke via node entrypoint directly using Node 22 if available
+        node_bin = shutil.which("node") or os.path.join(node22_bin, "node")
         js_candidates = [
             os.path.join(project_root, "node_modules", "bobshell", "dist", "bob.js"),
             os.path.join(home, ".local", "node_modules", "bobshell", "dist", "bob.js"),
             "/tmp/node_modules/bobshell/dist/bob.js",
         ]
-        if node_bin:
+        if os.path.isfile(node_bin):
             for jsc in js_candidates:
                 if os.path.isfile(jsc):
                     return f"{node_bin} {jsc}"
