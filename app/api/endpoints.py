@@ -96,10 +96,32 @@ def _clean_directory(dir_path: str) -> None:
                     pass
 
 
+def _clean_stale_temp_dirs(parent_dir: str) -> None:
+    """Removes leftover tmp directories older than 5 minutes to reclaim disk space."""
+    if not os.path.exists(parent_dir):
+        return
+    now = time.time()
+    try:
+        for entry in os.listdir(parent_dir):
+            if entry.startswith("tmp") or entry.startswith(".rubix") or "saleor" in entry:
+                full_path = os.path.join(parent_dir, entry)
+                try:
+                    mtime = os.path.getmtime(full_path)
+                    if now - mtime > 300:  # older than 5 minutes
+                        if os.path.isdir(full_path):
+                            shutil.rmtree(full_path, ignore_errors=True)
+                        else:
+                            os.remove(full_path)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+
 def _get_temp_parent_dir() -> str:
     """
-    Finds the first available writable directory for temporary repository clones.
-    Prioritizes local disk space (.tmp) over system RAM-backed /tmp (tmpfs).
+    Finds the writable directory with the MOST available free disk space.
+    Cleans up stale temp directories prior to selection.
     """
     candidates = [
         os.path.join(os.getcwd(), ".tmp"),
@@ -107,8 +129,15 @@ def _get_temp_parent_dir() -> str:
         tempfile.gettempdir(),
         "/tmp",
     ]
+
+    best_dir = None
+    best_free_space = -1
+
     for path in candidates:
         try:
+            os.makedirs(path, exist_ok=True)
+            _clean_stale_temp_dirs(path)
+
             test_dir = os.path.join(path, ".rubix_write_test")
             os.makedirs(test_dir, exist_ok=True)
             test_file = os.path.join(test_dir, "test.txt")
@@ -116,13 +145,38 @@ def _get_temp_parent_dir() -> str:
                 f.write("ok")
             os.remove(test_file)
             os.rmdir(test_dir)
-            return path
+
+            free_space = shutil.disk_usage(path).free
+            if free_space > best_free_space:
+                best_free_space = free_space
+                best_dir = path
         except Exception:
             continue
-    return tempfile.gettempdir()
+
+    return best_dir or tempfile.gettempdir()
 
 
 import shutil
+import time
+
+def _prune_non_code_files(target_dir: str) -> None:
+    """Prunes heavy non-code assets (images, videos, pdfs, node_modules) to save disk space."""
+    skip_exts = {
+        ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico",
+        ".mp4", ".mov", ".avi", ".mp3", ".pdf", ".zip", ".gz", ".tar",
+        ".woff", ".woff2", ".ttf", ".eot", ".wasm", ".so", ".dylib",
+        ".dll", ".exe", ".bin", ".pyc", ".pyo", ".db", ".sqlite", ".iso"
+    }
+    for root, dirs, files in os.walk(target_dir, topdown=True):
+        dirs[:] = [d for d in dirs if d not in {".git", "node_modules", ".venv", "venv", "__pycache__", "build", "dist"}]
+        for f in files:
+            ext = os.path.splitext(f)[1].lower()
+            if ext in skip_exts:
+                try:
+                    os.remove(os.path.join(root, f))
+                except Exception:
+                    pass
+
 
 async def _run_analysis_pipeline(job_id: str, repo_url: str, repo_ref: str) -> None:
     """
@@ -142,6 +196,8 @@ async def _run_analysis_pipeline(job_id: str, repo_url: str, repo_ref: str) -> N
             git_dir = os.path.join(tmp_dir, ".git")
             if os.path.exists(git_dir):
                 shutil.rmtree(git_dir, ignore_errors=True)
+
+            _prune_non_code_files(tmp_dir)
 
             initial_state: DecompositionState = {
                 "job_id": job_id,
@@ -180,32 +236,30 @@ import zipfile
 
 async def _clone_repo(repo_url: str, repo_ref: str, target_dir: str) -> None:
     """
-    Attempts git clone first. If git is missing or fails,
-    falls back to downloading and extracting GitHub repository zipball via pure Python.
+    Attempts partial git clone (--filter=blob:none --depth=1) first for minimal disk usage.
+    If git is missing or fails, falls back to pure Python zip download.
     Cleans target_dir before each attempt so git never complains about non-empty destination.
     """
-    try:
-        _clean_directory(target_dir)
-        proc = await asyncio.create_subprocess_exec(
-            "git", "clone", "--depth=1", "--branch", repo_ref, repo_url, target_dir,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        _, stderr = await proc.communicate()
-        if proc.returncode == 0:
-            return
+    git_commands = [
+        ["git", "clone", "--depth=1", "--filter=blob:none", "--branch", repo_ref, repo_url, target_dir],
+        ["git", "clone", "--depth=1", "--filter=blob:none", repo_url, target_dir],
+        ["git", "clone", "--depth=1", "--branch", repo_ref, repo_url, target_dir],
+        ["git", "clone", "--depth=1", repo_url, target_dir],
+    ]
 
-        _clean_directory(target_dir)
-        proc2 = await asyncio.create_subprocess_exec(
-            "git", "clone", "--depth=1", repo_url, target_dir,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        _, stderr2 = await proc2.communicate()
-        if proc2.returncode == 0:
-            return
-    except (FileNotFoundError, Exception):
-        pass
+    for cmd in git_commands:
+        try:
+            _clean_directory(target_dir)
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await proc.communicate()
+            if proc.returncode == 0:
+                return
+        except (FileNotFoundError, Exception):
+            continue
 
     # Fallback: Pure Python GitHub Zip download
     _clean_directory(target_dir)
